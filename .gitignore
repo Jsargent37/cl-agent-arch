@@ -1,0 +1,12 @@
+# Deny everything at the top level by default.
+/*
+
+# Allow only the toolkit + the files needed to support/document it.
+!/.claude/
+!/.gitignore
+!/README.md
+!/LICENSE
+
+# Even inside the allowed .claude/ tree, exclude local/machine noise.
+.claude/settings.local.json
+**/.DS_Store
