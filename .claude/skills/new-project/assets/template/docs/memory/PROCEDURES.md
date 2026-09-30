@@ -21,6 +21,7 @@ episodes: []
 content: |
   Use a local `uv` virtual environment (`.venv`) and maintain `pyproject.toml`. Manage dependencies
   with `uv add`; run code with `uv run`.
+distilled_into: null
 ```
 - Supported by: (none yet)
 
@@ -30,7 +31,12 @@ content: |
   (`promotion_count >= 2`), or immediately for anything genuinely universal.
 - Every entry's YAML block must include an `episodes` field; when non-empty, add matching links
   to the "Supported by" line.
+- Every entry's YAML block must include a `distilled_into` field. It stays `null` until the
+  procedure graduates into its own skill/tool file, at which point `distill`'s Graduate step sets
+  it to that skill/tool's id, moves the full `content` into a matching-id entry in
+  [Archive](ARCHIVE.md), and clears `content` here to `null`.
 
 ---
 
-See also: [Guardrails](GUARDRAILS.md) | [Lessons](LESSONS.md) | [Semantics](SEMANTICS.md)
+See also: [Guardrails](GUARDRAILS.md) | [Lessons](LESSONS.md) | [Semantics](SEMANTICS.md) |
+[Archive](ARCHIVE.md)

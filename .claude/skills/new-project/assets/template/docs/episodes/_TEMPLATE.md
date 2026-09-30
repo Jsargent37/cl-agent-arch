@@ -4,6 +4,14 @@ date: YYYY-MM-DD
 session: <slug>
 status: active
 related: []
+signals: []
+# One entry per reusable pattern this episode produced -- most episodes emit none:
+# - kind: guardrail|procedure|lesson|semantics
+#   id: <slug>
+#   note: "one-line description"
+#   tier: null              # guardrail only: script|review|judgment
+#   severity: null           # guardrail only: low|medium|high
+#   scope: project            # project | global (global = graduate-to-template candidate)
 ---
 
 # YYYY-MM-DD — <session-name>

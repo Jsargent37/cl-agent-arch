@@ -2,7 +2,9 @@
 """Registry linter: validates docs/memory/{GUARDRAILS,PROCEDURES,LESSONS,SEMANTICS}.md.
 
 Registries are Markdown files, one `### <id>` heading + fenced ```yaml block
-per entry (see registry_index.py for the shared parser).
+per entry (see registry_index.py for the shared parser). `ARCHIVE.md` is validated
+the same way but is intentionally NOT in registry_index.py's REGISTRY_FILES -- it
+stays out of the relevance-check index and every required-read list.
 Exit 0 = clean, 1 = violations found.
 Run: uv run --project docs/tools python docs/tools/check_registries.py
 """
@@ -10,17 +12,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from registry_index import REGISTRY_FILES, load_registry_list
+from registry_index import load_registry_list
 
 ROOT = Path(__file__).resolve().parents[2]  # workspace root
 MEMORY_DIR = ROOT / "docs" / "memory"
 
-# filename -> {"is_guardrail": bool}. SEMANTICS.md is handled separately (it's
-# the tag vocabulary source, not a content registry with the common schema).
+# filename -> {"is_guardrail": bool, "is_procedure": bool}. SEMANTICS.md is handled
+# separately (it's the tag vocabulary source, not a content registry with the
+# common schema). ARCHIVE.md is handled separately too (read on demand to validate
+# distilled_into references, never iterated as a content registry of its own).
 CONTENT_REGISTRIES: dict[str, dict] = {
-    "GUARDRAILS.md": {"is_guardrail": True},
-    "PROCEDURES.md": {"is_guardrail": False},
-    "LESSONS.md": {"is_guardrail": False},
+    "GUARDRAILS.md": {"is_guardrail": True, "is_procedure": False},
+    "PROCEDURES.md": {"is_guardrail": False, "is_procedure": True},
+    "LESSONS.md": {"is_guardrail": False, "is_procedure": False},
 }
 
 COMMON_FIELDS = {
@@ -28,6 +32,7 @@ COMMON_FIELDS = {
     "promoted_to", "promotion_count", "episodes",
 }
 GUARDRAIL_FIELDS = COMMON_FIELDS | {"enforceability", "hook", "tier", "severity"}
+PROCEDURE_FIELDS = COMMON_FIELDS | {"distilled_into"}
 
 STATUS_VALUES = {"draft", "promoted"}
 PROMOTION_TYPE_VALUES = {"skill", "hook", "agent", None}
@@ -40,14 +45,30 @@ def load_semantics_ids(path: Path) -> set[str]:
     return {entry["id"] for entry in load_registry_list(path) if "id" in entry}
 
 
+def load_archive_ids(path: Path) -> set[str]:
+    return {entry["id"] for entry in load_registry_list(path) if "id" in entry}
+
+
 def validate_entry(
-    entry: dict, rel: str, index: int, is_guardrail: bool, semantics_ids: set, errors: list
+    entry: dict,
+    rel: str,
+    index: int,
+    is_guardrail: bool,
+    is_procedure: bool,
+    semantics_ids: set,
+    archive_ids: set,
+    errors: list,
 ) -> None:
     loc = f"{rel}[{index}]"
     entry_id = entry.get("id")
     label = f"{loc} ({entry_id!r})"
 
-    required = GUARDRAIL_FIELDS if is_guardrail else COMMON_FIELDS
+    if is_guardrail:
+        required = GUARDRAIL_FIELDS
+    elif is_procedure:
+        required = PROCEDURE_FIELDS
+    else:
+        required = COMMON_FIELDS
     missing = required - entry.keys()
     if missing:
         errors.append(f"{label}: missing field(s) {sorted(missing)}")
@@ -77,9 +98,10 @@ def validate_entry(
             if tag not in semantics_ids:
                 errors.append(f"{label}: applicability tag {tag!r} not in SEMANTICS.md")
 
+    distilled_into = entry.get("distilled_into") if is_procedure else None
     content = entry.get("content")
     draft_ref = entry.get("draft_ref")
-    if bool(content) == bool(draft_ref):
+    if not distilled_into and bool(content) == bool(draft_ref):
         errors.append(f"{label}: exactly one of 'content' or 'draft_ref' must be set")
     if draft_ref and not (ROOT / draft_ref).exists():
         errors.append(f"{label}: draft_ref {draft_ref!r} does not resolve to a file")
@@ -109,10 +131,28 @@ def validate_entry(
         elif entry.get("severity") not in SEVERITY_VALUES:
             errors.append(f"{label}: severity {entry.get('severity')!r} not in {sorted(str(v) for v in SEVERITY_VALUES)}")
 
+    if is_procedure:
+        if "distilled_into" not in entry:
+            errors.append(f"{label}: missing field(s) ['distilled_into']")
+        elif distilled_into is not None:
+            if not isinstance(distilled_into, str) or not distilled_into:
+                errors.append(f"{label}: distilled_into must be a non-empty string or null")
+            if content:
+                errors.append(
+                    f"{label}: distilled_into is set but content is not empty -- "
+                    "collapse the full body into ARCHIVE.md and clear content"
+                )
+            if entry_id not in archive_ids:
+                errors.append(
+                    f"{label}: distilled_into is set but no ARCHIVE.md entry with id "
+                    f"{entry_id!r} exists"
+                )
+
 
 def run_registry_checks(memory_dir: Path) -> list[str]:
     errors: list = []
     semantics_ids = load_semantics_ids(memory_dir / "SEMANTICS.md")
+    archive_ids = load_archive_ids(memory_dir / "ARCHIVE.md")
 
     for filename, opts in CONTENT_REGISTRIES.items():
         path = memory_dir / filename
@@ -120,7 +160,10 @@ def run_registry_checks(memory_dir: Path) -> list[str]:
         entries = load_registry_list(path)
         seen_ids: set = set()
         for i, entry in enumerate(entries):
-            validate_entry(entry, rel, i, opts["is_guardrail"], semantics_ids, errors)
+            validate_entry(
+                entry, rel, i, opts["is_guardrail"], opts["is_procedure"],
+                semantics_ids, archive_ids, errors,
+            )
             entry_id = entry.get("id")
             if entry_id:
                 if entry_id in seen_ids:
