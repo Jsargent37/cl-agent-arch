@@ -1,6 +1,6 @@
 ---
 name: new-task
-description: Get up to speed on this project and start a new task. Runs a brief goal/scope interview, reads the curated docs (AGENTS, CODE_STANDARDS, README, INDEX), dispatches the registry-relevance-check agent to load only applicable knowledge-registry entries, then creates a dated episode file capturing the task goal and plan. Use at the start of any new task or work session in this project.
+description: Start a new task in this project. Confirms the goal/scope, reads the required onboarding docs, runs a registry relevance check to load only applicable knowledge-registry entries, creates a task branch when the project is a git repo, then opens a dated episode file capturing the task's goal and plan. Use at the start of any new task or work session in this project.
 ---
 
 # new-task
@@ -15,26 +15,18 @@ Read, in order: `AGENTS.md`, `docs/CODE_STANDARDS.md`, `README.md`, `docs/INDEX.
 registries. Pull a specific episode from `docs/episodes/` only if it is clearly relevant to this
 task.
 
-Then load relevant registry entries using whichever path is available:
-
-**If `docs/tools/registry_index.py` exists (fast path):**
+Then run the registry relevance check instead of reading all four registries in full:
 - Run `uv run --project docs/tools python docs/tools/registry_index.py --index`.
-- Dispatch the `registry-relevance-check` agent with the task's brief goal/scope (from step 1) and
-  the index output.
+- Dispatch a subagent (or perform the check yourself if no subagent mechanism is available) with
+  the task's brief goal/scope (from step 1) and the index output, asking it to name only the
+  entry ids relevant to this task.
 - If it returns any entry ids, run
   `uv run --project docs/tools python docs/tools/registry_index.py --fetch <id> [<id> ...]` and read
   the result — for any entry whose output shows a `draft_ref` path (instead of inline content), open
   that `docs/memory/promotion-drafts/<slug>.md` file directly. Only these matched entries' full
   content loads into context.
 - A relevance pass returning zero matches is normal (new project, novel task) — proceed with no
-  loaded registry content.
-
-**If `docs/tools/registry_index.py` does not exist (fallback):**
-- Read all four registries in full: `docs/memory/GUARDRAILS.yaml`, `docs/memory/PROCEDURES.yaml`,
-  `docs/memory/LESSONS.yaml`, `docs/memory/SEMANTICS.yaml`.
-- Mention to the user that the registry tools are not installed. The tools are not bundled in this
-  template — they can be obtained from the `new-project` skill source or added manually. Offer to
-  proceed with the full-read fallback, which is functionally equivalent for most projects.
+  loaded registry content, no special-casing.
 
 ## 3. Recap
 Give the user a short "here's what I understand about this project and your task" recap to confirm
@@ -42,18 +34,28 @@ onboarding worked — mention any matched registry entries from step 2.
 
 ## 4. Capture the task
 Interview fully for Goal/Scope and an initial Plan (expanding on step 1's brief version).
-- **Big task** (multi-step, multi-file, design open): run a dedicated brainstorming pass, then
-  write a plan document and link it in the episode's `## Plan`.
+- **Big task** (multi-step, multi-file, design open): run a structured design/brainstorming pass
+  before writing the plan, then produce a written implementation plan — link the resulting plan
+  file in the episode's `## Plan`.
 - **Small task:** write the Plan inline in the episode.
 
 ## 5. Open the episode
 - Determine today's date (`YYYY-MM-DD`) and a short kebab-case `<slug>`.
 - Copy `docs/episodes/_TEMPLATE.md` to `docs/episodes/{date}-{slug}.md` (if it exists, append `-2`,
   `-3`, …).
-- Fill the frontmatter (`date`, `session`, `status: active`) and the `## Goal / Scope` and `## Plan`
-  sections.
+- Fill the frontmatter (`date`, `session`, `status: active`, `signals: []`) and the `## Goal /
+  Scope` and `## Plan` sections.
 
-## 6. Work
+## 6. Branch (conditional)
+Run `scripts/branch-if-git.sh {date}-{slug}` (the same `{date}-{slug}` from step 5, so the branch
+name and episode filename always match). It reports one of: `not-a-git-repo` (this project isn't
+git-tracked — proceed with no branch, exactly as today), `already-on-task-branch` (a task branch is
+already checked out — don't nest a second one), or `created-branch` (the new branch is now
+checked out). Never run `git init` yourself to force this step to apply — an ungated project simply
+skips it.
+
+## 7. Work
 As you work, keep these episode sections current: `## Log` (key decisions), `## Files touched`
-(every file you create/edit), and `## Promotion candidates` (terms/rules worth promoting). Finish
-with the `closeout` skill.
+(every file you create/edit), `## Promotion candidates` (terms/rules worth promoting), and
+`signals:` (one entry per reusable pattern, per the schema comment in `_TEMPLATE.md` — most tasks
+add none). Finish with the `closeout` skill.
