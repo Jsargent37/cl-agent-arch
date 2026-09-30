@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash .claude/skills/new-task/scripts/new-task.sh:*)",
+      "Bash(bash .claude/skills/code-review/scripts/code-review-commit.sh:*)",
+      "Bash(bash .claude/skills/closeout/scripts/closeout.sh:*)",
+      "Bash(bash .claude/skills/distill/scripts/tally-signals.sh:*)",
+      "Bash(bash .claude/skills/drift-check/scripts/inventory.sh:*)"
+    ]
+  }
+}
