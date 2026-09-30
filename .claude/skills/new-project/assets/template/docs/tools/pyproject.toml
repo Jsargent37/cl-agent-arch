@@ -1,0 +1,13 @@
+[project]
+name = "doc-lint"
+version = "0.1.0"
+description = "Documentation and knowledge-registry linter for the SI research workspace"
+requires-python = ">=3.9"
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]

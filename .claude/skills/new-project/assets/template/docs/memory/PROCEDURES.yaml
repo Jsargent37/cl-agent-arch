@@ -1,0 +1,11 @@
+- id: python-uv-workflow
+  summary: Use a local uv virtual environment and pyproject.toml for Python work
+  applicability: [python-environment]
+  status: draft
+  promotion_type: null
+  promoted_to: null
+  promotion_count: 1
+  episodes: []
+  content: |
+    Use a local `uv` virtual environment (`.venv`) and maintain `pyproject.toml`. Manage dependencies
+    with `uv add`; run code with `uv run`.
