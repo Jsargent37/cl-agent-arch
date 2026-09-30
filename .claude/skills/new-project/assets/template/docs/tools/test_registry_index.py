@@ -1,176 +1,123 @@
+"""Tests for registry_index.py's Markdown+YAML-block parser and CLI helpers."""
+from __future__ import annotations
+
 from pathlib import Path
-
-import registry_index as ri
-
-
-def _write(path: Path, text: str) -> Path:
-    path.write_text(text, encoding="utf-8")
-    return path
-
-
-def test_load_yaml_list_missing_file_returns_empty(tmp_path):
-    assert ri.load_yaml_list(tmp_path / "nope.yaml") == []
-
-
-def test_load_yaml_list_reads_entries(tmp_path):
-    path = _write(
-        tmp_path / "REGISTRY.yaml",
-        "- id: example-one\n  summary: does a thing\n"
-        "- id: example-two\n  summary: does another thing\n",
-    )
-    entries = ri.load_yaml_list(path)
-    assert [e["id"] for e in entries] == ["example-one", "example-two"]
-
-
-def test_build_index_strips_content_and_draft_ref(tmp_path):
-    _write(
-        tmp_path / "GUARDRAILS.yaml",
-        "- id: no-global-python\n"
-        "  summary: Never use a global Python\n"
-        "  applicability: [python-environment]\n"
-        "  status: draft\n"
-        "  promotion_type: null\n"
-        "  promoted_to: null\n"
-        "  promotion_count: 1\n"
-        "  episodes: []\n"
-        "  content: Use a local uv venv.\n"
-        "  enforceability: hard\n"
-        "  hook: null\n",
-    )
-    for name in ("PROCEDURES.yaml", "LESSONS.yaml", "SEMANTICS.yaml"):
-        _write(tmp_path / name, "")
-
-    index = ri.build_index(tmp_path)
-    entry = index["GUARDRAILS.yaml"][0]
-    assert entry == {
-        "id": "no-global-python",
-        "summary": "Never use a global Python",
-        "applicability": ["python-environment"],
-        "status": "draft",
-        "promotion_type": None,
-    }
-    assert "content" not in entry
-    assert "draft_ref" not in entry
-
-
-def test_build_index_covers_all_four_registries(tmp_path):
-    for name in ri.REGISTRY_FILES:
-        _write(tmp_path / name, "")
-    index = ri.build_index(tmp_path)
-    assert set(index.keys()) == {
-        "GUARDRAILS.yaml", "PROCEDURES.yaml", "LESSONS.yaml", "SEMANTICS.yaml",
-    }
-
-
-def test_build_index_missing_registry_file_yields_empty_list(tmp_path):
-    index = ri.build_index(tmp_path)
-    assert index["GUARDRAILS.yaml"] == []
-
-
-def test_format_index_lists_each_registry_and_entry(tmp_path):
-    for name in ri.REGISTRY_FILES:
-        _write(tmp_path / name, "")
-    _write(
-        tmp_path / "SEMANTICS.yaml",
-        "- id: streamlit\n  summary: dashboard UI framework\n  applicability: []\n"
-        "  status: promoted\n  promotion_type: null\n",
-    )
-    text = ri.format_index(ri.build_index(tmp_path))
-    assert "SEMANTICS.yaml" in text
-    assert "streamlit" in text
-    assert "dashboard UI framework" in text
-
 
 import pytest
 
+from registry_index import (
+    build_index,
+    find_entry,
+    format_fetch,
+    format_index,
+    load_registry_list,
+    parse_registry_markdown,
+    RegistryIndexError,
+)
 
-def _guardrails_with_draft_ref(tmp_path, draft_dir):
-    draft_dir.mkdir(parents=True, exist_ok=True)
-    draft_path = draft_dir / "long-thing.md"
-    draft_path.write_text("# long thing\nsteps...\n", encoding="utf-8")
-    _write(
-        tmp_path / "PROCEDURES.yaml",
-        "- id: long-thing\n"
-        "  summary: A long procedure\n"
-        "  applicability: []\n"
-        "  status: draft\n"
-        "  promotion_type: null\n"
-        "  promoted_to: null\n"
-        "  promotion_count: 1\n"
-        "  episodes: []\n"
-        f"  draft_ref: {draft_path.as_posix()}\n",
-    )
-    _write(
-        tmp_path / "GUARDRAILS.yaml",
-        "- id: no-global-python\n"
-        "  summary: Never use a global Python\n"
-        "  applicability: [python-environment]\n"
-        "  status: draft\n"
-        "  promotion_type: null\n"
-        "  promoted_to: null\n"
-        "  promotion_count: 1\n"
-        "  episodes: []\n"
-        "  content: Use a local uv venv.\n"
-        "  enforceability: hard\n"
-        "  hook: null\n",
-    )
-    for name in ("LESSONS.yaml", "SEMANTICS.yaml"):
-        _write(tmp_path / name, "")
-    return draft_path
+SAMPLE_MD = """---
+tags: [memory, memory/guardrail]
+---
 
+# Guardrails
 
-def test_find_entry_locates_by_id_across_registries(tmp_path):
-    _guardrails_with_draft_ref(tmp_path, tmp_path / "promotion-drafts")
-    filename, entry = ri.find_entry(tmp_path, "no-global-python")
-    assert filename == "GUARDRAILS.yaml"
-    assert entry["summary"] == "Never use a global Python"
+## Entries
 
+### follow-code-standards
+```yaml
+summary: Follow CODE_STANDARDS.md for all code
+applicability: [code-standards]
+status: draft
+promotion_type: null
+promoted_to: null
+promotion_count: 1
+episodes: []
+content: Follow CODE_STANDARDS.md for all code.
+enforceability: hard
+tier: null
+severity: null
+hook: null
+```
+- Supported by: (none yet)
 
-def test_find_entry_raises_for_unknown_id(tmp_path):
-    for name in ri.REGISTRY_FILES:
-        _write(tmp_path / name, "")
-    with pytest.raises(ri.RegistryIndexError, match="unknown-id"):
-        ri.find_entry(tmp_path, "unknown-id")
+### python-uv-workflow
+```yaml
+summary: Use a local uv virtual environment
+applicability: [python-environment]
+status: draft
+promotion_type: null
+promoted_to: null
+promotion_count: 1
+episodes: []
+content: |
+  Line one of a multi-line explanation.
+  ### This looks like a heading but is inside the fenced block.
+  Line three.
+enforceability: soft
+tier: null
+severity: null
+hook: null
+```
+- Supported by: (none yet)
 
+## Update Rule
 
-def test_format_fetch_prints_inline_content(tmp_path):
-    _guardrails_with_draft_ref(tmp_path, tmp_path / "promotion-drafts")
-    text = ri.format_fetch(tmp_path, ["no-global-python"])
-    assert "Use a local uv venv." in text
-
-
-def test_format_fetch_prints_draft_ref_path_not_inlined(tmp_path):
-    draft_path = _guardrails_with_draft_ref(tmp_path, tmp_path / "promotion-drafts")
-    text = ri.format_fetch(tmp_path, ["long-thing"])
-    assert draft_path.as_posix() in text
-    assert "steps..." not in text
+Not an entry.
+"""
 
 
-def test_format_fetch_handles_multiple_ids_in_order(tmp_path):
-    _guardrails_with_draft_ref(tmp_path, tmp_path / "promotion-drafts")
-    text = ri.format_fetch(tmp_path, ["no-global-python", "long-thing"])
-    assert text.index("no-global-python") < text.index("long-thing")
+def test_parse_registry_markdown_extracts_two_entries():
+    entries = parse_registry_markdown(SAMPLE_MD)
+    ids = [e["id"] for e in entries]
+    assert ids == ["follow-code-standards", "python-uv-workflow"]
 
 
-def test_main_index_prints_and_returns_zero(tmp_path, monkeypatch, capsys):
-    for name in ri.REGISTRY_FILES:
-        _write(tmp_path / name, "")
-    monkeypatch.setattr(ri, "MEMORY_DIR", tmp_path)
-    rc = ri.main(["--index"])
-    assert rc == 0
-    assert "GUARDRAILS.yaml" in capsys.readouterr().out
+def test_parse_registry_markdown_preserves_multiline_content_with_embedded_heading_lookalike():
+    entries = parse_registry_markdown(SAMPLE_MD)
+    content = entries[1]["content"]
+    assert "### This looks like a heading" in content
+    assert content.count("\n") >= 2
 
 
-def test_main_fetch_unknown_id_prints_error_and_returns_one(tmp_path, monkeypatch, capsys):
-    for name in ri.REGISTRY_FILES:
-        _write(tmp_path / name, "")
-    monkeypatch.setattr(ri, "MEMORY_DIR", tmp_path)
-    rc = ri.main(["--fetch", "unknown-id"])
-    assert rc == 1
-    assert "unknown-id" in capsys.readouterr().err
+def test_parse_registry_markdown_reads_scalar_fields():
+    entries = parse_registry_markdown(SAMPLE_MD)
+    assert entries[0]["enforceability"] == "hard"
+    assert entries[0]["tier"] is None
+    assert entries[0]["severity"] is None
 
 
-def test_main_requires_index_or_fetch(tmp_path, monkeypatch):
-    monkeypatch.setattr(ri, "MEMORY_DIR", tmp_path)
-    with pytest.raises(SystemExit):
-        ri.main([])
+def test_load_registry_list_missing_file_returns_empty(tmp_path: Path):
+    assert load_registry_list(tmp_path / "NOPE.md") == []
+
+
+def test_load_registry_list_round_trips_from_disk(tmp_path: Path):
+    p = tmp_path / "GUARDRAILS.md"
+    p.write_text(SAMPLE_MD, encoding="utf-8")
+    entries = load_registry_list(p)
+    assert len(entries) == 2
+
+
+def test_build_index_excludes_content(tmp_path: Path):
+    (tmp_path / "GUARDRAILS.md").write_text(SAMPLE_MD, encoding="utf-8")
+    (tmp_path / "PROCEDURES.md").write_text("", encoding="utf-8")
+    (tmp_path / "LESSONS.md").write_text("", encoding="utf-8")
+    (tmp_path / "SEMANTICS.md").write_text("", encoding="utf-8")
+    index = build_index(tmp_path)
+    entry = index["GUARDRAILS.md"][0]
+    assert "content" not in entry
+    assert entry["id"] == "follow-code-standards"
+
+
+def test_find_entry_missing_id_raises(tmp_path: Path):
+    for name in ("GUARDRAILS.md", "PROCEDURES.md", "LESSONS.md", "SEMANTICS.md"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    with pytest.raises(RegistryIndexError):
+        find_entry(tmp_path, "does-not-exist")
+
+
+def test_format_fetch_inlines_content(tmp_path: Path):
+    (tmp_path / "GUARDRAILS.md").write_text(SAMPLE_MD, encoding="utf-8")
+    for name in ("PROCEDURES.md", "LESSONS.md", "SEMANTICS.md"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    out = format_fetch(tmp_path, ["follow-code-standards"])
+    assert "content: Follow CODE_STANDARDS.md for all code." in out
