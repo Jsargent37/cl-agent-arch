@@ -12,7 +12,7 @@ description: Bug- and improvement-focused review of a change set that produces a
 Local only — do not use `gh` or post anywhere.
 
 ## 2. Dispatch focused reviewers
-Dispatch ~3 subagents in parallel, each reviewing the change set against `docs/CODE_STANDARDS.md` + `docs/memory/PROCEDURES.yaml`/`GUARDRAILS.yaml`/`LESSONS.yaml`/`SEMANTICS.yaml`:
+Dispatch ~3 subagents in parallel, each reviewing the change set against `docs/CODE_STANDARDS.md` + `docs/memory/PROCEDURES.md`/`GUARDRAILS.md`/`LESSONS.md`/`SEMANTICS.md`:
 - **bug-hunting** (highest priority) — correctness, edge cases, regressions.
 - **improvements** — design / readability / robustness / testing opportunities.
 - **cleanup** — dead code, redundancy, minor naming/formatting.

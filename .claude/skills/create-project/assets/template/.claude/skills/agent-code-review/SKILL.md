@@ -6,7 +6,7 @@ description: Thorough, multi-agent review of the current task's changes AND thei
 # agent-code-review
 
 ## 1. Resolve the change set + load context
-Resolve changes (git diff → episode `## Files touched` → ask). Load `docs/INDEX.md`, `docs/memory/PROCEDURES.yaml`, `docs/memory/GUARDRAILS.yaml`, `docs/memory/LESSONS.yaml`, `docs/memory/SEMANTICS.yaml`, and `docs/CODE_STANDARDS.md`.
+Resolve changes (git diff → episode `## Files touched` → ask). Load `docs/INDEX.md`, `docs/memory/PROCEDURES.md`, `docs/memory/GUARDRAILS.md`, `docs/memory/LESSONS.md`, `docs/memory/SEMANTICS.md`, and `docs/CODE_STANDARDS.md`.
 
 ## 2. Dispatch 6 lens subagents (in parallel)
 Each reviews the change set through ONE lens and reports findings (`file:line` + issue + suggested fix):
