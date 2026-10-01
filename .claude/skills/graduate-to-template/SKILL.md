@@ -87,11 +87,14 @@ Union the source entries' `episodes` lists (namespaced per sibling project, e.g.
 For a recurring **procedure** candidate specifically, apply the same skill-vs-agent judgment
 `distill` uses: *is this a narrow, mechanical, single-purpose task reliable enough for a
 small/cheap model tier to execute alone, with no orchestration of other subagents?* If yes, read
-and follow the agent-authoring procedure at
 `Documents/projects/.claude/skills/create-project/assets/template/.claude/skills/creating-agents/SKILL.md`
 directly (don't invoke `creating-agents` by name — the projects root has no top-level skill by
-that name), including its `## Platform mechanics` section for the file location and required
-frontmatter. Author the resulting `pm-<slug>` helper file with `promoted_to` set to its own path
+that name) for its `## Platform mechanics` section's model/frontmatter mechanics only — this skill,
+not `creating-agents`, decides the destination: author the resulting `pm-<slug>` helper file at
+`Documents/projects/.claude/skills/create-project/assets/template/.claude/agents/pm-<slug>.md`
+(the **template's own** `.claude/agents/`, not the projects root's — `creating-agents`'s generic
+"alongside this project's `.claude/skills/`" phrasing is written for a single project and would
+otherwise resolve to the projects root when read from here), with `promoted_to` set to that path
 and `status: promoted`. If no — including genuine doubt — author
 `Documents/projects/.claude/skills/create-project/assets/template/.claude/skills/pm-<slug>/SKILL.md`
 directly, with `promoted_to` set to that path.

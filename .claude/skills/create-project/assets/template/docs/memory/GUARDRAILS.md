@@ -70,8 +70,9 @@ hook: null
   human-judgment rule stated in prose with no checkable condition at all (-> `judgment`). Only
   after that decision does a `script`-tier candidate get routed to `graduate_guardrail.py` to
   generate the hook/permission-rule artifact; `review`/`judgment`-tier candidates graduate as plain
-  registry entries (`promoted_to: null` — there is no external artifact, the registry entry itself
-  is the enforcement record).
+  registry entries with `promotion_type: null` and `promoted_to: null` — `promotion_type` only
+  names a skill/hook/agent artifact, and a `review`/`judgment`-tier graduation produces none; `tier`
+  already records that it graduated. The registry entry itself is the enforcement record.
 - `tier` and `severity` are proposed by `distill`'s Graduate step and confirmed by the user
   before being written — a wrong `script`-tier guess produces a broken hook, and a wrong
   `judgment`-tier guess adds a permanent always-read line for something that could have been

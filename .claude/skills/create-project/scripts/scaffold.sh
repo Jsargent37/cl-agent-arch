@@ -74,16 +74,16 @@ mkdir -p "$project_abs_path"
 
 list_template_files() {
   if git -C "$template_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    git -C "$template_dir" ls-files -z
+    git -C "$template_dir" ls-files -z --cached --others --exclude-standard
   else
-    find "$template_dir" -type f \
+    ( cd "$template_dir" && find . -type f \
       -not -path '*/.venv/*' \
       -not -path '*/__pycache__/*' \
       -not -path '*/.pytest_cache/*' \
       -not -name '*.pyc' \
       -not -name '*.pyo' \
       -not -name 'uv.lock' \
-      -print0
+      -print0 ) | sed -z 's|^\./||'
   fi
 }
 

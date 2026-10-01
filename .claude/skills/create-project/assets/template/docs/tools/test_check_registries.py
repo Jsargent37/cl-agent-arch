@@ -67,6 +67,40 @@ hook: null
 ```
 """
 
+REVIEW_TIER_GRADUATED_GUARDRAIL = """### review-tier-guardrail
+```yaml
+summary: A guardrail graduated as review-tier (no skill/hook/agent artifact)
+applicability: [code-standards]
+status: promoted
+promotion_type: null
+promoted_to: null
+promotion_count: 2
+episodes: []
+content: Cheaply checkable by a human or reviewing agent, not by a mechanical condition.
+enforceability: hard
+tier: review
+severity: medium
+hook: null
+```
+"""
+
+JUDGMENT_TIER_GRADUATED_GUARDRAIL = """### judgment-tier-guardrail
+```yaml
+summary: A guardrail graduated as judgment-tier (no skill/hook/agent artifact)
+applicability: [code-standards]
+status: promoted
+promotion_type: null
+promoted_to: null
+promotion_count: 2
+episodes: []
+content: A human-judgment rule with no checkable condition at all.
+enforceability: hard
+tier: judgment
+severity: low
+hook: null
+```
+"""
+
 VALID_PROCEDURE_NOT_DISTILLED = """### python-uv-workflow
 ```yaml
 summary: Use a local uv virtual environment
@@ -185,6 +219,19 @@ def test_invalid_tier_value_is_flagged(tmp_path: Path):
     _write(tmp_path, guardrails_body=BAD_TIER_VALUE_GUARDRAIL)
     errors = run_registry_checks(tmp_path)
     assert any("tier" in e and "not-a-real-tier" in e for e in errors)
+
+
+def test_review_tier_graduated_guardrail_passes(tmp_path: Path):
+    """A review/judgment-tier guardrail graduates with promotion_type: null and
+    promoted_to: null (tier records how it graduated; there's no skill/hook/agent
+    artifact for promotion_type/promoted_to to name). See I4 residual fix."""
+    _write(tmp_path, guardrails_body=REVIEW_TIER_GRADUATED_GUARDRAIL)
+    assert run_registry_checks(tmp_path) == []
+
+
+def test_judgment_tier_graduated_guardrail_passes(tmp_path: Path):
+    _write(tmp_path, guardrails_body=JUDGMENT_TIER_GRADUATED_GUARDRAIL)
+    assert run_registry_checks(tmp_path) == []
 
 
 def test_duplicate_ids_flagged(tmp_path: Path):

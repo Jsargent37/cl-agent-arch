@@ -100,9 +100,11 @@ Only after tier is decided:
   `judgment`-tier candidate to it.
 - **`review`/`judgment`-tier**: these graduate as plain registry entries, without going through
   `graduate_guardrail.py` — there is no hook or permission-rule artifact to generate. Hold the
-  proposed entry update as part of the aggregate diff: `status: promoted`, `promotion_type` set to
-  `review` or `judgment` (matching `tier`), `promoted_to: null` (no external artifact — the
-  registry entry itself is the enforcement record), `tier` and `severity` as decided above.
+  proposed entry update as part of the aggregate diff: `status: promoted`, `promotion_type: null`
+  (the guardrail isn't becoming a skill/hook/agent file — `promotion_type` only names that kind of
+  artifact; `tier` already records that this graduated as `review`/`judgment`), `promoted_to: null`
+  (no external artifact — the registry entry itself is the enforcement record), `tier` and
+  `severity` as decided above.
 
 The user confirms tier/severity, and the resulting registry update, along with everything else in
 step 6.
@@ -123,7 +125,9 @@ entry's final `promotion_count`), `episodes` (copied as-is), `content` (the move
 clearing the `PROCEDURES.md` entry's own `content` to `null`. Also set the SAME
 `status`/`promotion_type`/`promoted_to` fields on the `PROCEDURES.md` entry that a normal
 (non-collapsed) graduation would set (`status: promoted`, `promotion_type` describing the
-skill/agent mechanism, `promoted_to` the new skill/agent's id) — a collapsed entry must be
+skill/agent mechanism, `promoted_to` the new skill/agent **file's path** — e.g.
+`.claude/skills/pm-<slug>/SKILL.md` or `.claude/agents/pm-<slug>.md`, not a bare id/name, since
+`check_registries.py` requires `promoted_to` to resolve to an actual file) — a collapsed entry must be
 recognized as already-promoted, the same as any other graduated entry, so a future `distill` pass
 never re-collects or re-graduates it. A procedure that graduates via `graduate_guardrail.py`
 (guardrails only) never collapses this way — this only applies to `PROCEDURES.md` entries gaining
