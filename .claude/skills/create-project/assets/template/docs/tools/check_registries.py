@@ -2,8 +2,12 @@
 """Registry linter: validates docs/memory/{GUARDRAILS,PROCEDURES,LESSONS,SEMANTICS}.md.
 
 Registries are Markdown files, one `### <id>` heading + fenced ```yaml block
-per entry (see registry_index.py for the shared parser). `ARCHIVE.md` is validated
-the same way but is intentionally NOT in registry_index.py's REGISTRY_FILES -- it
+per entry (see registry_index.py for the shared parser). `ARCHIVE.md` is NOT a
+fifth registry validated the same way as the other four: only its id set is
+read (via load_archive_ids), to cross-reference `distilled_into` targets on the
+real registries. ARCHIVE.md's own field schema (`collapsed_on`,
+`original_promotions`, etc.) is not separately validated by this script.
+ARCHIVE.md is intentionally NOT in registry_index.py's REGISTRY_FILES -- it
 stays out of the relevance-check index and every required-read list.
 Exit 0 = clean, 1 = violations found.
 Run: uv run --project docs/tools python docs/tools/check_registries.py
@@ -146,6 +150,12 @@ def validate_entry(
                 errors.append(
                     f"{label}: distilled_into is set but no ARCHIVE.md entry with id "
                     f"{entry_id!r} exists"
+                )
+            if entry.get("status") != "promoted":
+                errors.append(
+                    f"{label}: distilled_into is set but status is "
+                    f"{entry.get('status')!r}, not 'promoted' -- a collapsed entry must be "
+                    "marked promoted so it is not re-collected/re-graduated"
                 )
 
 

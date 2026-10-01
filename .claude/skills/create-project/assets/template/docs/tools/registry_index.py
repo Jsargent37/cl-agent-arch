@@ -118,6 +118,10 @@ def format_fetch(memory_dir: Path, entry_ids: list[str]) -> str:
             lines.append(f"content: {entry['content']}")
         elif entry.get("draft_ref"):
             lines.append(f"draft_ref: {entry['draft_ref']}  # read this file directly")
+        elif entry.get("distilled_into"):
+            lines.append(f"distilled_into: {entry['distilled_into']}  # collapsed; see ARCHIVE.md / that id")
+            if entry.get("promoted_to"):
+                lines.append(f"promoted_to: {entry['promoted_to']}")
         lines.append("")
     return "\n".join(lines).rstrip("\n") + "\n"
 

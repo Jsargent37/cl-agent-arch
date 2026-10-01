@@ -136,6 +136,20 @@ distilled_into: pm-example
 ```
 """
 
+DISTILLED_PROCEDURE_WITH_DRAFT_STATUS = """### collapsed-procedure
+```yaml
+summary: distilled_into is set but status was never updated to promoted
+applicability: [python-environment]
+status: draft
+promotion_type: null
+promoted_to: null
+promotion_count: 3
+episodes: []
+content: null
+distilled_into: pm-example
+```
+"""
+
 MATCHING_ARCHIVE = """### collapsed-procedure
 ```yaml
 collapsed_on: 2026-09-30
@@ -209,3 +223,13 @@ def test_distilled_procedure_with_leftover_content_is_flagged(tmp_path: Path):
     )
     errors = run_registry_checks(tmp_path)
     assert any("distilled_into" in e and "content" in e for e in errors)
+
+
+def test_distilled_procedure_with_draft_status_is_flagged(tmp_path: Path):
+    _write(
+        tmp_path,
+        procedures_body=DISTILLED_PROCEDURE_WITH_DRAFT_STATUS,
+        archive_body=MATCHING_ARCHIVE,
+    )
+    errors = run_registry_checks(tmp_path)
+    assert any("distilled_into" in e and "status" in e for e in errors)
