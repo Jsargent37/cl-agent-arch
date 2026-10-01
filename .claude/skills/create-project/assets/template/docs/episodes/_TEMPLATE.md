@@ -3,6 +3,7 @@ tags: [episode]
 date: YYYY-MM-DD
 session: <slug>
 status: active
+branch: null  # set by new-task step 6 to the task branch name, if one was created
 related: []
 signals: []
 # One entry per reusable pattern this episode produced -- most episodes emit none:
@@ -19,7 +20,7 @@ signals: []
 ## Goal / Scope
 
 ## Plan
-<!-- For big tasks, link the superpowers writing-plans output here. -->
+<!-- For big tasks, link the separate written implementation plan file here. -->
 
 ## Log
 <!-- Capture key decisions as work happens. -->

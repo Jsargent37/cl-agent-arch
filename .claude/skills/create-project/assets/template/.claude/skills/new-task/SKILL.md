@@ -43,16 +43,18 @@ Interview fully for Goal/Scope and an initial Plan (expanding on step 1's brief 
 - Determine today's date (`YYYY-MM-DD`) and a short kebab-case `<slug>`.
 - Copy `docs/episodes/_TEMPLATE.md` to `docs/episodes/{date}-{slug}.md` (if it exists, append `-2`,
   `-3`, …).
-- Fill the frontmatter (`date`, `session`, `status: active`, `signals: []`) and the `## Goal /
-  Scope` and `## Plan` sections.
+- Fill the frontmatter (`date`, `session`, `status: active`, `branch: null`, `signals: []`) and the
+  `## Goal / Scope` and `## Plan` sections.
 
 ## 6. Branch (conditional)
-Run `scripts/branch-if-git.sh {date}-{slug}` (the same `{date}-{slug}` from step 5, so the branch
-name and episode filename always match). It reports one of: `not-a-git-repo` (this project isn't
-git-tracked — proceed with no branch, exactly as today), `already-on-task-branch` (a task branch is
-already checked out — don't nest a second one), or `created-branch` (the new branch is now
-checked out). Never run `git init` yourself to force this step to apply — an ungated project simply
-skips it.
+Run `.claude/skills/new-task/scripts/branch-if-git.sh {date}-{slug}` (the same `{date}-{slug}` from
+step 5, so the branch name and episode filename always match). It reports one of: `not-a-git-repo`
+(this project isn't git-tracked — proceed with no branch, exactly as today), `already-on-task-branch`
+(a task branch is already checked out — don't nest a second one), or `created-branch` (the new
+branch is now checked out). Never run `git init` yourself to force this step to apply — an ungated
+project simply skips it. If (and only if) it reports `created-branch`, set the episode's `branch:`
+frontmatter field to `{date}-{slug}` — this is what lets `closeout` later verify it's merging the
+right branch.
 
 ## 7. Work
 As you work, keep these episode sections current: `## Log` (key decisions), `## Files touched`

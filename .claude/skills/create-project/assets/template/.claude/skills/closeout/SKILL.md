@@ -12,9 +12,14 @@ FAIL.
 
 ## 2. User Approval Gate
 Summarize the changes made on this task: what was changed and why, any deviations from the
-original plan and the reason for each, and the review/test results. Ask the user explicitly: "Do
-you approve these changes?" This is a hard gate — do not proceed to step 3 without an explicit
-yes. If the user requests changes, make them, re-run `code-review`, and repeat this step.
+original plan and the reason for each, and the review/test results. If the active episode's
+`branch:` frontmatter field is set and this is a git repo, explicitly disclose the pending branch
+operation too: which branch will be merged into which (the episode's `branch:` value, into the
+detected default branch), and that the branch will then be deleted — step 8 below carries this out
+automatically once approved here, with no separate confirmation of its own. Ask the user
+explicitly: "Do you approve these changes?" This is a hard gate — do not proceed to step 3 without
+an explicit yes, and it covers the branch merge/delete as well as the file changes. If the user
+requests changes, make them, re-run `code-review`, and repeat this step.
 
 ## 3. Finalize the episode
 Fill `## What was completed`, `## What worked well`, `## What didn't work well`, `## Learnings`.
@@ -53,6 +58,13 @@ Remove scratch/temp files (deletion prompts per settings). If Python, verify `py
 `.venv` are consistent. Sweep leftover `TODO:` markers and resolve or note them.
 
 ## 8. Branch cleanup (conditional)
-Run `scripts/merge-if-git.sh`. It reports `not-a-git-repo` or `already-on-default-branch` (both
-normal no-ops — nothing else to do) or `merged-and-deleted` (the task branch is merged into the
-default branch and removed). Never run `git init` yourself to force this step to apply.
+Read the active episode's `branch:` frontmatter field, then run
+`.claude/skills/closeout/scripts/merge-if-git.sh "<that value>"` (pass it empty/omit it if the field
+is `null`). It reports one of: `not-a-git-repo` or `already-on-default-branch` (both normal no-ops
+— nothing else to do), `no-recorded-branch-skip-merge` (the episode has no `branch:` value — nothing
+to merge), `current-branch-mismatch-skip-merge` (the checked-out branch isn't the one the episode
+recorded — refuses rather than merging/deleting the wrong branch), `detached-head-skip-merge`
+(HEAD is detached — refuses rather than attempting a nonsensical merge), or `merged-and-deleted`
+(the recorded task branch is merged into the default branch and removed). Step 2's approval gate
+already covers this merge+delete, so no further confirmation happens here. Never run `git init`
+yourself to force this step to apply.
