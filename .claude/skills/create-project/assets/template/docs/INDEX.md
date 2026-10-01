@@ -21,7 +21,8 @@ A map of the project's structure. Keep this current (`closeout` will prompt you 
 - `memory/GUARDRAILS.md` — enforcement rules (hard/soft)
 - `memory/LESSONS.md` — narrative/scope-limited findings
 - `memory/ARCHIVE.md` — collapsed/superseded registry content, kept for `distilled_into` cross-references
-- `memory/VERDICTS.md` — recorded pr-review / review verdicts
+- `memory/VERDICTS.md` — shared verdict vocabulary (`Keep`/`Improve`/`Update`/`Retire`/`Merge into
+  <target>`) used by `distill`, `drift-check`, and `graduate-to-template` when proposing changes
 - `memory/promotion-drafts/` — standalone draft content for long promotion candidates
 - `episodes/` — per-task records
 - `reviews/` — pr-review reports
