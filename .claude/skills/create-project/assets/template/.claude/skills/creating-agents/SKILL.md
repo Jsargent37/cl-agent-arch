@@ -59,9 +59,11 @@ test above and belongs in a skill instead.
 
 ## Naming for mined helpers
 
-When this skill is invoked by `distill` (as opposed to a human authoring one directly), the
-produced `name` is prefixed `pm-` (e.g. `pm-v11-transcription-runbook`) so mined helpers are
-visually distinguishable from hand-authored ones at a glance.
+Whenever this skill is invoked for registry/mining-related work — e.g. by `distill` for
+procedure-to-helper graduation, or by `graduate-to-template` when it creates a helper for
+promoting a proven pattern up to the shared template — the produced `name` is prefixed `pm-`
+(e.g. `pm-v11-transcription-runbook`) so mined/graduated helpers are visually distinguishable from
+hand-authored ones at a glance.
 
 ## Worked example (Claude Code)
 

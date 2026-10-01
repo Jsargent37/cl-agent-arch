@@ -56,6 +56,7 @@ applied" or "code-review: FAIL — goal alignment, tests").
 
 ## 6. Commit (conditional)
 On an Overall PASS (after step 4's fixes, if any, are applied): run
-`scripts/code-review-commit.sh "<descriptive message>"`. It reports `not-a-git-repo` for a
+`.claude/skills/code-review/scripts/code-review-commit.sh "<descriptive message>"`. It reports
+`not-a-git-repo` for a
 non-git project (nothing to do) or commits and reports the message. Skip this step entirely on a
 FAIL — nothing gets committed until `code-review` actually passes.

@@ -11,7 +11,8 @@ description: Audit every skill and agent in this project (hand-written or produc
 - **Full Scan**: evaluate every skill and agent, and also run the LESSONS.md pruning pass (step 3).
 
 ## 1. Inventory
-Run `scripts/inventory.sh` for a Full Scan, or `scripts/inventory.sh --quick` for a Quick Scan
+Run `.claude/skills/drift-check/scripts/inventory.sh` for a Full Scan, or
+`.claude/skills/drift-check/scripts/inventory.sh --quick` for a Quick Scan
 (reports only skills changed since the last run, via its own cache file). Also list
 `.claude/agents/*.md` directly (the script only inventories `.claude/skills/*/SKILL.md`) — for
 Quick Scan, narrow this to files modified since the last recorded `drift-check` run. Note the run

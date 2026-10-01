@@ -13,7 +13,7 @@ Scaffolds a new project from the bundled template in `assets/template/`.
   `.claude/skills/`.
 
 ## 1. Locate the projects root
-The projects root is two levels up from this skill folder (`…/.claude/skills/create-project` →
+The projects root is three levels up from this skill folder (`…/.claude/skills/create-project` →
 the parent of `.claude`). New projects are created as subfolders there. Confirm the root with the
 user if ambiguous.
 
@@ -27,7 +27,8 @@ Follow [reference/interview.md](reference/interview.md). Cover purpose, key term
 tech stack & structure, Python?, git? Ask only what helps; gauge depth from the answers.
 
 ## 4. Copy + substitute
-Run `scripts/scaffold.sh <slug> "<project-name>" "<project-abs-path>"` (add `--force` to overwrite
+Run `.claude/skills/create-project/scripts/scaffold.sh <slug> "<project-name>" "<project-abs-path>"`
+(add `--force` to overwrite
 existing files, `--python`/`--git` per step 6's conditionals). It copies `assets/template/`
 **recursively, including dotfiles** into `<project-abs-path>`, substitutes `{{PROJECT_NAME}}`,
 `{{SLUG}}`, `{{DATE}}`, and `{{PROJECT_ABS_PATH}}` in every file except

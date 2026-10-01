@@ -61,9 +61,10 @@ still shallow.
 
 ## 3. Template-side anti-duplication/staleness pass, before promoting anything new
 
-Read every skill already in `.claude/skills/create-project/assets/template/.claude/skills/` (and
-its `.agents/skills` mirror) and check each promotion-gate-passing candidate against them for
-overlap. Separately, audit the template's existing skills against each other for drift or
+Read every skill already in `.claude/skills/create-project/assets/template/.claude/skills/` and
+check each promotion-gate-passing candidate against them for overlap (the template payload itself
+has no `.agents/` directory — only a project scaffolded by `scaffold.sh` gets one). Separately,
+audit the template's existing skills against each other for drift or
 redundancy — same [verdict vocabulary](../create-project/assets/template/docs/memory/VERDICTS.md) `drift-check` uses,
 applied to the template. This keeps the template from accumulating near-duplicate skills as more
 projects graduate similar patterns over time.
@@ -89,9 +90,9 @@ small/cheap model tier to execute alone, with no orchestration of other subagent
 and follow the agent-authoring procedure at
 `Documents/projects/.claude/skills/create-project/assets/template/.claude/skills/creating-agents/SKILL.md`
 directly (don't invoke `creating-agents` by name — the projects root has no top-level skill by
-that name). Author `Documents/projects/.claude/skills/create-project/assets/template/.claude/agents/
-pm-<slug>.md` with `promoted_to` set to that same path, `status: promoted`, `model: haiku` hardcoded,
-tools scoped to the minimum needed. If no — including genuine doubt — author
+that name), including its `## Platform mechanics` section for the file location and required
+frontmatter. Author the resulting `pm-<slug>` helper file with `promoted_to` set to its own path
+and `status: promoted`. If no — including genuine doubt — author
 `Documents/projects/.claude/skills/create-project/assets/template/.claude/skills/pm-<slug>/SKILL.md`
 directly, with `promoted_to` set to that path.
 
