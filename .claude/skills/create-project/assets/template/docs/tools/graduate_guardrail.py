@@ -5,7 +5,7 @@ hook-script stub), tags it `tier: script`, and updates the registry entry to
 match, editing the Markdown file in place.
 
 Default mode proposes only (no writes); pass --apply to write.
-Run: uv run --project docs/tools python docs/tools/graduate_guardrail.py <id> [--apply]
+Run: uv run --project docs/tools python docs/tools/graduate_guardrail.py <id> [--severity low|medium|high] [--apply]
 """
 from __future__ import annotations
 
@@ -110,17 +110,23 @@ def classify_mechanism(entry: dict) -> tuple[str, str | None]:
     return "hook-script", None
 
 
-def build_registry_update(entry: dict, mechanism: str, target: str) -> dict:
-    """Return a copy of entry with status/promotion_type/promoted_to/tier set for graduation.
+def build_registry_update(
+    entry: dict, mechanism: str, target: str, severity: str | None = None
+) -> dict:
+    """Return a copy of entry with status/promotion_type/promoted_to/tier/severity set.
 
     Every mechanism this tool produces (permission-rule, hook-script) is `script`
     tier by construction -- this tool never proposes `review` or `judgment` tier.
+    `severity` is proposed by the caller (distill's Graduate step); this tool never
+    guesses it itself.
     """
     updated = dict(entry)
     updated["status"] = "promoted"
     updated["promotion_type"] = "hook"
     updated["promoted_to"] = target
     updated["tier"] = "script"
+    if severity is not None:
+        updated["severity"] = severity
     return updated
 
 
@@ -195,7 +201,13 @@ def add_pretooluse_hook(settings: dict, matcher: str, command: str) -> tuple[dic
     return updated, True
 
 
-def propose(entry: dict, mechanism: str, pattern: str | None, rule_type: str) -> dict:
+def propose(
+    entry: dict,
+    mechanism: str,
+    pattern: str | None,
+    rule_type: str,
+    severity: str | None = None,
+) -> dict:
     """Build the full proposal: mechanism, settings-change description, and registry update."""
     guardrail_id = entry["id"]
     if mechanism == "permission-rule":
@@ -218,7 +230,7 @@ def propose(entry: dict, mechanism: str, pattern: str | None, rule_type: str) ->
         "pattern": pattern,
         "rule_type": rule_type,
         "settings_change": settings_change,
-        "registry_update": build_registry_update(entry, mechanism, target),
+        "registry_update": build_registry_update(entry, mechanism, target, severity),
         "target": target,
     }
 
@@ -266,6 +278,8 @@ def print_proposal(entry: dict, proposal: dict) -> None:
     print(f"  promotion_type: {entry.get('promotion_type')} -> {ru['promotion_type']}")
     print(f"  promoted_to: {entry.get('promoted_to')} -> {ru['promoted_to']}")
     print(f"  tier: {entry.get('tier')} -> {ru['tier']}")
+    if "severity" in ru:
+        print(f"  severity: {entry.get('severity')} -> {ru['severity']}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -283,6 +297,10 @@ def main(argv: list[str] | None = None) -> int:
         "--rule-type", choices=["deny", "ask"], default="deny",
         help="Which permission list to add to for permission-rule mechanism (default: deny).",
     )
+    parser.add_argument(
+        "--severity", choices=["low", "medium", "high"], default=None,
+        help="Severity to stamp on the graduated entry (proposed by the caller, e.g. distill).",
+    )
     parser.add_argument("--apply", action="store_true", help="Write the changes (default: propose only).")
     args = parser.parse_args(argv)
 
@@ -298,7 +316,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.pattern:
                 pattern = args.pattern
 
-        proposal = propose(entry, mechanism, pattern, args.rule_type)
+        proposal = propose(entry, mechanism, pattern, args.rule_type, args.severity)
     except GuardrailError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

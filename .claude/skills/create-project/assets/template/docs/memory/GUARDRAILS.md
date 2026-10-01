@@ -63,12 +63,22 @@ hook: null
 
 ## Update Rule
 
+- `tier` is decided by `distill`'s Graduate step BEFORE routing, not assigned as a byproduct of
+  which tool happened to handle graduation: `distill` first judges whether the rule is mechanizable
+  as a `PreToolUse` hook/permission rule (concrete, checkable condition and action -> `script`),
+  cheaply checkable by a human/reviewing agent but not mechanically (-> `review`), or a
+  human-judgment rule stated in prose with no checkable condition at all (-> `judgment`). Only
+  after that decision does a `script`-tier candidate get routed to `graduate_guardrail.py` to
+  generate the hook/permission-rule artifact; `review`/`judgment`-tier candidates graduate as plain
+  registry entries (`promoted_to: null` — there is no external artifact, the registry entry itself
+  is the enforcement record).
 - `tier` and `severity` are proposed by `distill`'s Graduate step and confirmed by the user
   before being written — a wrong `script`-tier guess produces a broken hook, and a wrong
   `judgment`-tier guess adds a permanent always-read line for something that could have been
   enforced for free.
 - `enforceability: hard` graduates on first occurrence (any `promotion_count`); `soft` never
-  graduates automatically — it stays `status: draft`.
+  graduates automatically — it stays `status: draft`, and never carries a `tier` (a tier only
+  exists once an entry actually graduates, and soft guardrails never do).
 - Every entry's YAML block must include an `episodes` field; when non-empty, add matching
   `[episode-name](../episodes/episode-name.md)` links to the "Supported by" line.
 

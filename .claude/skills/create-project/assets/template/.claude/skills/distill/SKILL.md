@@ -14,9 +14,12 @@ Read `docs/memory/GUARDRAILS.md`, `docs/memory/PROCEDURES.md`, `docs/memory/LESS
 `docs/memory/SEMANTICS.md` directly. Collect every entry across the first three registries with
 `status: draft`. This step is deterministic — do it yourself, no subagent needed.
 
-Also run `scripts/tally-signals.sh docs/episodes` to tally cross-episode `signals:` occurrences
-(one `kind\tid\tcount\tepisodes` line per distinct kind+id pair). Treat an id with count ≥2 (or
-count ≥1 for a `guardrail` signal noted `severity: high`) the same as a `status: draft` registry
+Also run `.claude/skills/distill/scripts/tally-signals.sh docs/episodes` to tally cross-episode
+`signals:` occurrences (one `kind\tid\tcount\tscope\tseverity\tepisodes` line per distinct kind+id
+pair — `scope` is `global` if any contributing signal said `scope: global`, else `project`;
+`severity` is the highest severity seen across contributing signals, or empty if none specified).
+Treat an id with count ≥2, or a `guardrail` signal with `severity: high` (readable directly off the
+`severity` column — no need to re-parse raw episode files), the same as a `status: draft` registry
 entry for the rest of this pass, even if it has no registry entry yet — this is what lets a pattern
 surface before anyone has manually drafted it. Treat any `scope: global` signal as an immediate
 cross-project candidate: flag it in step 6's aggregate diff as "also consider running
@@ -75,24 +78,40 @@ For each entry (post-consolidation, post-prune) meeting its registry's maturity 
   stay `status: draft` regardless of `promotion_count`, continuing to surface only via the new-task
   relevance pass.
 
-For each graduating **hard guardrail**: queue a `graduate_guardrail.py <id>` invocation (propose
-mode first, to capture its proposed mechanism/target/`tier: script` for the aggregate diff below)
-— do not pass `--apply` yet.
+For each graduating **hard guardrail**, first decide its `tier` yourself, BEFORE deciding how to
+route it:
+- **`script`** — the rule has a concrete, checkable condition and action: a specific command,
+  file pattern, or tool call that a `PreToolUse` hook or permission rule could mechanically block
+  or allow. Only a `script`-tier candidate is eligible for `graduate_guardrail.py`.
+- **`review`** — the rule is cheaply checkable by a human or reviewing agent but not by a simple
+  mechanical condition (e.g. a `/code-review` checklist line).
+- **`judgment`** — the rule is a human-judgment rule stated in prose, with no CLI verb or checkable
+  condition at all (e.g. `follow-code-standards` in the template's seed `GUARDRAILS.md` — "follow
+  CODE_STANDARDS.md for all code" has nothing a hook could check, so it lands here, never
+  `script`, regardless of how often it's cited).
 
-For each graduating guardrail (hard or soft) that isn't handled by `graduate_guardrail.py`
-(i.e. any `review`- or `judgment`-tier candidate — `graduate_guardrail.py` only ever proposes
-`script` tier): propose the `tier` (`review` or `judgment`) and `severity`
-(`low`/`medium`/`high`) yourself, based on how cheaply the rule can be checked (a `/code-review`
-checklist line = `review`; nothing cheaper works = `judgment`) and how costly a violation would
-be. Hold this as part of the aggregate diff — the user confirms tier/severity along with
-everything else in step 6.
+Also always propose a `severity` (`low`/`medium`/`high`) for every graduating guardrail, based on
+how costly a violation would be — this applies to all three tiers, not just `script`.
+
+Only after tier is decided:
+- **`script`-tier**: queue a `graduate_guardrail.py <id> --severity <severity>` invocation (propose
+  mode first, to capture its proposed mechanism/target for the aggregate diff below) — do not pass
+  `--apply` yet. `graduate_guardrail.py` stamps `tier: script` itself; never route a `review`- or
+  `judgment`-tier candidate to it.
+- **`review`/`judgment`-tier**: these graduate as plain registry entries, without going through
+  `graduate_guardrail.py` — there is no hook or permission-rule artifact to generate. Hold the
+  proposed entry update as part of the aggregate diff: `status: promoted`, `promotion_type` set to
+  `review` or `judgment` (matching `tier`), `promoted_to: null` (no external artifact — the
+  registry entry itself is the enforcement record), `tier` and `severity` as decided above.
+
+The user confirms tier/severity, and the resulting registry update, along with everything else in
+step 6.
 
 For each graduating **procedure**: dispatch a subagent with the merged entry's full digest
 (from step 3) and this test: *is this a narrow, mechanical, single-purpose task reliable enough for
 a small/cheap model tier to execute alone, with no orchestration of other subagents?* If yes, invoke
-the `creating-agents` skill to author a helper (Claude Code: `.claude/agents/pm-<slug>.md`,
-hardcoding `model: haiku`, scoping `tools` to the minimum needed — see `creating-agents/SKILL.md`
-for the platform-specific mechanics). If no — including any case of genuine doubt — author a
+the `creating-agents` skill to author a `pm-<slug>` helper (see its `## Platform mechanics` section
+for the file location and required frontmatter on this project's platform). If no — including any case of genuine doubt — author a
 `.claude/skills/pm-<slug>/SKILL.md` file instead. Hold the authored file as a proposed diff; do
 not write it yet.
 
@@ -101,9 +120,14 @@ same proposed diff: setting that `PROCEDURES.md` entry's `distilled_into` to the
 id, moving its full `content` verbatim into a new same-id entry in `docs/memory/ARCHIVE.md`
 (fields: `collapsed_on` (today's date), `distilled_into` (same id), `original_promotions` (the
 entry's final `promotion_count`), `episodes` (copied as-is), `content` (the moved text)), and
-clearing the `PROCEDURES.md` entry's own `content` to `null`. A procedure that graduates via
-`graduate_guardrail.py` (guardrails only) never collapses this way — this only applies to
-`PROCEDURES.md` entries gaining a dedicated skill/agent file.
+clearing the `PROCEDURES.md` entry's own `content` to `null`. Also set the SAME
+`status`/`promotion_type`/`promoted_to` fields on the `PROCEDURES.md` entry that a normal
+(non-collapsed) graduation would set (`status: promoted`, `promotion_type` describing the
+skill/agent mechanism, `promoted_to` the new skill/agent's id) — a collapsed entry must be
+recognized as already-promoted, the same as any other graduated entry, so a future `distill` pass
+never re-collects or re-graduates it. A procedure that graduates via `graduate_guardrail.py`
+(guardrails only) never collapses this way — this only applies to `PROCEDURES.md` entries gaining
+a dedicated skill/agent file.
 
 ## 6. Propose, then apply on confirm
 
@@ -118,7 +142,7 @@ file, no `settings.json` change — until the user confirms.
 On confirmation:
 1. Write every registry file change (including any `ARCHIVE.md` additions and the matching
    `PROCEDURES.md` collapse), `promotion-drafts/` file change, and new skill/agent file.
-2. Re-run each queued `graduate_guardrail.py <id> --apply`.
+2. Re-run each queued `graduate_guardrail.py <id> --severity <severity> --apply`.
 3. Run `uv run --project docs/tools python docs/tools/check_registries.py`. Fix any violation it
    reports (a bad tag merge, an orphaned `promoted_to` path, a dangling `draft_ref`, a
    `distilled_into` with no matching `ARCHIVE.md` entry) before considering the pass done.
