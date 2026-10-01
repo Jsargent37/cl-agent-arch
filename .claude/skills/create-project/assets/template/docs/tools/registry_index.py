@@ -28,14 +28,14 @@ _ENTRY_HEADING_RE = re.compile(r"^### (\S+)\s*$", re.MULTILINE)
 _YAML_BLOCK_RE = re.compile(r"```yaml\n(.*?)\n```", re.DOTALL)
 
 
-def parse_registry_markdown(text: str) -> list[dict]:
+def parse_registry_markdown(text: str) -> list[dict[str, object]]:
     """Parse a registry Markdown file's text into a list of entry dicts.
 
     Each entry is `### <id>` followed by the first fenced ```yaml block after
     it (and before the next `### ` heading). The block's top-level YAML keys
     become dict fields; `id` is injected from the heading.
     """
-    entries: list[dict] = []
+    entries: list[dict[str, object]] = []
     headings = list(_ENTRY_HEADING_RE.finditer(text))
     for i, heading in enumerate(headings):
         entry_id = heading.group(1)
@@ -53,20 +53,20 @@ def parse_registry_markdown(text: str) -> list[dict]:
     return entries
 
 
-def load_registry_list(path: Path) -> list[dict]:
+def load_registry_list(path: Path) -> list[dict[str, object]]:
     """Load one registry Markdown file's entries. Missing file -> []."""
     if not path.exists():
         return []
     return parse_registry_markdown(path.read_text(encoding="utf-8-sig"))
 
 
-def build_index(memory_dir: Path) -> dict[str, list[dict]]:
+def build_index(memory_dir: Path) -> dict[str, list[dict[str, object]]]:
     """Return {registry_filename: [compact entry, ...]} across all four registries.
 
     Each compact entry has only id/summary/applicability/status/promotion_type --
     never content or draft_ref.
     """
-    index: dict[str, list[dict]] = {}
+    index: dict[str, list[dict[str, object]]] = {}
     for filename in REGISTRY_FILES:
         entries = load_registry_list(memory_dir / filename)
         index[filename] = [
@@ -76,7 +76,7 @@ def build_index(memory_dir: Path) -> dict[str, list[dict]]:
     return index
 
 
-def format_index(index: dict[str, list[dict]]) -> str:
+def format_index(index: dict[str, list[dict[str, object]]]) -> str:
     """Render the index as readable YAML, grouped by registry filename."""
     lines: list[str] = []
     for filename, entries in index.items():
@@ -90,7 +90,7 @@ class RegistryIndexError(ValueError):
     """Raised when a requested entry id cannot be found in any registry."""
 
 
-def find_entry(memory_dir: Path, entry_id: str) -> tuple[str, dict]:
+def find_entry(memory_dir: Path, entry_id: str) -> tuple[str, dict[str, object]]:
     """Find entry_id across all four registries. Returns (filename, entry).
 
     Raises RegistryIndexError if not found in any registry.

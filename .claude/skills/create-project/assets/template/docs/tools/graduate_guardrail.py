@@ -13,6 +13,7 @@ import argparse
 import json
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -37,7 +38,7 @@ class _LiteralDumper(yaml.SafeDumper):
     pass
 
 
-def _str_presenter(dumper, data):
+def _str_presenter(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
     if "\n" in data:
         return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
     return dumper.represent_scalar("tag:yaml.org,2002:str", data)
@@ -46,7 +47,7 @@ def _str_presenter(dumper, data):
 _LiteralDumper.add_representer(str, _str_presenter)
 
 
-def dump_entry_yaml(data: dict) -> str:
+def dump_entry_yaml(data: dict[str, object]) -> str:
     """Dump an entry dict as YAML, using literal block style for multi-line strings.
 
     `id` is excluded — it lives in the `### <id>` heading, not the fenced block.
@@ -55,7 +56,7 @@ def dump_entry_yaml(data: dict) -> str:
     return yaml.dump(body, Dumper=_LiteralDumper, sort_keys=False, allow_unicode=True).rstrip("\n")
 
 
-def replace_entry_block(text: str, entry_id: str, new_data: dict) -> str:
+def replace_entry_block(text: str, entry_id: str, new_data: dict[str, object]) -> str:
     """Replace entry_id's fenced ```yaml block in text with new_data's rendering.
 
     Anchors on the full `### <id>` heading line (word boundary via `\\s*$`) so an
@@ -72,7 +73,7 @@ def replace_entry_block(text: str, entry_id: str, new_data: dict) -> str:
     return new_text
 
 
-def load_guardrail_entry(memory_dir: Path, guardrail_id: str) -> dict:
+def load_guardrail_entry(memory_dir: Path, guardrail_id: str) -> dict[str, object]:
     """Load one entry from GUARDRAILS.md by id. Raises GuardrailError if missing."""
     entries = load_registry_list(memory_dir / "GUARDRAILS.md")
     for entry in entries:
@@ -81,7 +82,7 @@ def load_guardrail_entry(memory_dir: Path, guardrail_id: str) -> dict:
     raise GuardrailError(f"no guardrail with id {guardrail_id!r} in {memory_dir / 'GUARDRAILS.md'}")
 
 
-def validate_eligible(entry: dict) -> None:
+def validate_eligible(entry: dict[str, object]) -> None:
     """Raise GuardrailError if entry is not eligible for hook graduation."""
     if entry.get("enforceability") != "hard":
         raise GuardrailError(
@@ -95,7 +96,7 @@ def validate_eligible(entry: dict) -> None:
         )
 
 
-def classify_mechanism(entry: dict) -> tuple[str, str | None]:
+def classify_mechanism(entry: dict[str, object]) -> tuple[str, str | None]:
     """Propose 'permission-rule' (with a command pattern) or 'hook-script' (no pattern).
 
     Scans backtick-quoted spans in `content` for a known CLI verb as the first
@@ -110,9 +111,9 @@ def classify_mechanism(entry: dict) -> tuple[str, str | None]:
     return "hook-script", None
 
 
-def build_registry_update(
-    entry: dict, mechanism: str, target: str, severity: str | None = None
-) -> dict:
+def _build_registry_update(
+    entry: dict[str, object], mechanism: str, target: str, severity: str | None = None
+) -> dict[str, object]:
     """Return a copy of entry with status/promotion_type/promoted_to/tier/severity set.
 
     Every mechanism this tool produces (permission-rule, hook-script) is `script`
@@ -130,7 +131,7 @@ def build_registry_update(
     return updated
 
 
-def permission_rule_string(pattern: str) -> str:
+def _permission_rule_string(pattern: str) -> str:
     """Format a command pattern as a Claude Code permission rule.
 
     e.g. 'pip install' -> 'Bash(pip install:*)'
@@ -138,13 +139,15 @@ def permission_rule_string(pattern: str) -> str:
     return f"Bash({pattern}:*)"
 
 
-def load_settings(path: Path) -> dict:
+def load_settings(path: Path) -> dict[str, object]:
     if not path.exists():
         raise GuardrailError(f"{path} does not exist")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def add_permission_rule(settings: dict, rule_type: str, rule: str) -> tuple[dict, bool]:
+def add_permission_rule(
+    settings: dict[str, object], rule_type: str, rule: str
+) -> tuple[dict[str, object], bool]:
     """Add `rule` to settings['permissions'][rule_type] if not already present.
 
     Returns (updated_settings, was_added); was_added is False on no-op.
@@ -182,7 +185,9 @@ def scaffold_hook_script(hook_scripts_dir: Path, guardrail_id: str) -> Path:
     return script_path
 
 
-def add_pretooluse_hook(settings: dict, matcher: str, command: str) -> tuple[dict, bool]:
+def add_pretooluse_hook(
+    settings: dict[str, object], matcher: str, command: str
+) -> tuple[dict[str, object], bool]:
     """Add a PreToolUse hook entry (matcher + command) if not already present.
 
     Returns (updated_settings, was_added). Does not mutate the input.
@@ -201,67 +206,79 @@ def add_pretooluse_hook(settings: dict, matcher: str, command: str) -> tuple[dic
     return updated, True
 
 
-def propose(
-    entry: dict,
-    mechanism: str,
-    pattern: str | None,
-    rule_type: str,
-    severity: str | None = None,
-) -> dict:
+@dataclass
+class ProposalInputs:
+    """The caller-supplied inputs that shape a graduation proposal."""
+
+    mechanism: str
+    pattern: str | None
+    rule_type: str
+    severity: str | None = None
+
+
+def propose(entry: dict[str, object], inputs: ProposalInputs) -> dict[str, object]:
     """Build the full proposal: mechanism, settings-change description, and registry update."""
     guardrail_id = entry["id"]
-    if mechanism == "permission-rule":
-        if not pattern:
+    if inputs.mechanism == "permission-rule":
+        if not inputs.pattern:
             raise GuardrailError("permission-rule mechanism requires a pattern")
-        rule = permission_rule_string(pattern)
-        target = f".claude/settings.json#permissions.{rule_type}"
-        settings_change = f"add {rule!r} to permissions.{rule_type}"
-    elif mechanism == "hook-script":
+        rule = _permission_rule_string(inputs.pattern)
+        target = f".claude/settings.json#permissions.{inputs.rule_type}"
+        settings_change = f"add {rule!r} to permissions.{inputs.rule_type}"
+    elif inputs.mechanism == "hook-script":
         target = f"docs/tools/guardrail_hooks/{guardrail_id}.py"
         settings_change = (
             f"scaffold {target} (stub) and add a PreToolUse hook entry "
             f"matching this guardrail's tool(s)"
         )
     else:
-        raise GuardrailError(f"unknown mechanism {mechanism!r}")
+        raise GuardrailError(f"unknown mechanism {inputs.mechanism!r}")
 
     return {
-        "mechanism": mechanism,
-        "pattern": pattern,
-        "rule_type": rule_type,
+        "mechanism": inputs.mechanism,
+        "pattern": inputs.pattern,
+        "rule_type": inputs.rule_type,
         "settings_change": settings_change,
-        "registry_update": build_registry_update(entry, mechanism, target, severity),
+        "registry_update": _build_registry_update(entry, inputs.mechanism, target, inputs.severity),
         "target": target,
     }
 
 
-def apply_proposal(
-    root: Path, settings_file: Path, memory_dir: Path, entry: dict, proposal: dict
-) -> None:
+@dataclass
+class ToolPaths:
+    """Filesystem locations `apply_proposal` writes to -- bundled so the function
+    stays under the project's five-parameter threshold for plain positional args."""
+
+    root: Path
+    settings_file: Path
+    memory_dir: Path
+
+
+def apply_proposal(paths: ToolPaths, entry: dict[str, object], proposal: dict[str, object]) -> None:
     """Write the settings.json change, hook-script stub (if applicable), and the
     updated GUARDRAILS.md entry in place."""
     guardrail_id = entry["id"]
 
     if proposal["mechanism"] == "permission-rule":
-        settings = load_settings(settings_file)
-        rule = permission_rule_string(proposal["pattern"])
+        settings = load_settings(paths.settings_file)
+        rule = _permission_rule_string(proposal["pattern"])
         updated_settings, _ = add_permission_rule(settings, proposal["rule_type"], rule)
-        settings_file.write_text(json.dumps(updated_settings, indent=2) + "\n", encoding="utf-8")
+        paths.settings_file.write_text(json.dumps(updated_settings, indent=2) + "\n", encoding="utf-8")
     elif proposal["mechanism"] == "hook-script":
-        hook_scripts_dir = root / "docs" / "tools" / "guardrail_hooks"
+        hook_scripts_dir = paths.root / "docs" / "tools" / "guardrail_hooks"
         script_path = scaffold_hook_script(hook_scripts_dir, guardrail_id)
-        settings = load_settings(settings_file)
-        command = f"python {script_path.relative_to(root).as_posix()}"
+        settings = load_settings(paths.settings_file)
+        command = f"python {script_path.relative_to(paths.root).as_posix()}"
         updated_settings, _ = add_pretooluse_hook(settings, "*", command)
-        settings_file.write_text(json.dumps(updated_settings, indent=2) + "\n", encoding="utf-8")
+        paths.settings_file.write_text(json.dumps(updated_settings, indent=2) + "\n", encoding="utf-8")
 
-    guardrails_path = memory_dir / "GUARDRAILS.md"
+    guardrails_path = paths.memory_dir / "GUARDRAILS.md"
     text = guardrails_path.read_text(encoding="utf-8-sig")
     updated_text = replace_entry_block(text, guardrail_id, proposal["registry_update"])
     guardrails_path.write_text(updated_text, encoding="utf-8")
 
 
-def print_proposal(entry: dict, proposal: dict) -> None:
+def _print_proposal(entry: dict[str, object], proposal: dict[str, object]) -> None:
     print(f"Guardrail: {entry['id']}")
     print(f"  summary: {entry.get('summary')}")
     print(
@@ -316,15 +333,15 @@ def main(argv: list[str] | None = None) -> int:
             if args.pattern:
                 pattern = args.pattern
 
-        proposal = propose(entry, mechanism, pattern, args.rule_type, args.severity)
+        proposal = propose(entry, ProposalInputs(mechanism, pattern, args.rule_type, args.severity))
     except GuardrailError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
-    print_proposal(entry, proposal)
+    _print_proposal(entry, proposal)
 
     if args.apply:
-        apply_proposal(ROOT, SETTINGS_FILE, MEMORY_DIR, entry, proposal)
+        apply_proposal(ToolPaths(ROOT, SETTINGS_FILE, MEMORY_DIR), entry, proposal)
         print("\nApplied.")
 
     return 0

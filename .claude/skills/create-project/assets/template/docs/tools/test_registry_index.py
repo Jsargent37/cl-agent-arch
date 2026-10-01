@@ -121,3 +121,60 @@ def test_format_fetch_inlines_content(tmp_path: Path):
         (tmp_path / name).write_text("", encoding="utf-8")
     out = format_fetch(tmp_path, ["follow-code-standards"])
     assert "content: Follow CODE_STANDARDS.md for all code." in out
+
+
+DRAFT_REF_MD = """### long-procedure
+```yaml
+summary: A procedure too long to inline
+applicability: [python-environment]
+status: draft
+promotion_type: null
+promoted_to: null
+promotion_count: 1
+episodes: []
+draft_ref: docs/memory/promotion-drafts/long-procedure.md
+distilled_into: null
+```
+"""
+
+DISTILLED_INTO_MD = """### collapsed-procedure
+```yaml
+summary: A procedure that graduated into a real skill
+applicability: [python-environment]
+status: promoted
+promotion_type: skill
+promoted_to: .claude/skills/example/SKILL.md
+promotion_count: 3
+episodes: []
+content: null
+distilled_into: pm-example
+```
+"""
+
+
+def test_format_fetch_points_to_draft_ref_file(tmp_path: Path):
+    (tmp_path / "PROCEDURES.md").write_text(DRAFT_REF_MD, encoding="utf-8")
+    for name in ("GUARDRAILS.md", "LESSONS.md", "SEMANTICS.md"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    out = format_fetch(tmp_path, ["long-procedure"])
+    assert "draft_ref: docs/memory/promotion-drafts/long-procedure.md" in out
+    assert "read this file directly" in out
+
+
+def test_format_fetch_points_to_distilled_into_and_promoted_to(tmp_path: Path):
+    (tmp_path / "PROCEDURES.md").write_text(DISTILLED_INTO_MD, encoding="utf-8")
+    for name in ("GUARDRAILS.md", "LESSONS.md", "SEMANTICS.md"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    out = format_fetch(tmp_path, ["collapsed-procedure"])
+    assert "distilled_into: pm-example" in out
+    assert "promoted_to: .claude/skills/example/SKILL.md" in out
+
+
+def test_format_index_groups_by_registry_filename(tmp_path: Path):
+    (tmp_path / "GUARDRAILS.md").write_text(SAMPLE_MD, encoding="utf-8")
+    for name in ("PROCEDURES.md", "LESSONS.md", "SEMANTICS.md"):
+        (tmp_path / name).write_text("", encoding="utf-8")
+    out = format_index(build_index(tmp_path))
+    assert "# GUARDRAILS.md" in out
+    assert "follow-code-standards" in out
+    assert "content" not in out
