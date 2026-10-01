@@ -13,10 +13,10 @@ New here? Read [docs/ONBOARDING.md](docs/ONBOARDING.md) first. To start a task, 
 Follow [docs/CODE_STANDARDS.md](docs/CODE_STANDARDS.md) for all code you write or review. It is the canonical, universal standard.
 
 ## How we work
-- Project language + applicability tags: [docs/memory/SEMANTICS.yaml](docs/memory/SEMANTICS.yaml).
-- Procedures, guardrails, and lessons: [docs/memory/PROCEDURES.yaml](docs/memory/PROCEDURES.yaml),
-  [docs/memory/GUARDRAILS.yaml](docs/memory/GUARDRAILS.yaml),
-  [docs/memory/LESSONS.yaml](docs/memory/LESSONS.yaml).
+- Project language + applicability tags: [docs/memory/SEMANTICS.md](docs/memory/SEMANTICS.md).
+- Procedures, guardrails, and lessons: [docs/memory/PROCEDURES.md](docs/memory/PROCEDURES.md),
+  [docs/memory/GUARDRAILS.md](docs/memory/GUARDRAILS.md),
+  [docs/memory/LESSONS.md](docs/memory/LESSONS.md).
 - Every task is recorded as an *episode* in `docs/episodes/`. Keep the active episode's `## Log`, `## Files touched`, and `## Promotion candidates` current as you work.
 
 ## Python (whenever Python is used)
@@ -25,4 +25,4 @@ Follow [docs/CODE_STANDARDS.md](docs/CODE_STANDARDS.md) for all code you write o
 - Never install into or use a global/system Python. `pip install` is denied by settings.
 
 ## Project skills
-`new-task` · `code-review` · `pr-review` · `agent-code-review` · `closeout` · `mine-registries` · `creating-agents` (see [docs/ONBOARDING.md](docs/ONBOARDING.md)).
+`new-task` · `code-review` · `pr-review` · `agent-code-review` · `closeout` · `distill` · `drift-check` · `creating-agents` (see [docs/ONBOARDING.md](docs/ONBOARDING.md)).

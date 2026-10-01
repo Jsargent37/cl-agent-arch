@@ -6,7 +6,7 @@ tags: [reference]
 
 Apply to every `.md` written into a project so files work in BOTH VSCode preview and Obsidian.
 
-1. **Frontmatter tags.** Start each doc/note `.md` with YAML frontmatter containing `tags:`. Taxonomy: `episode`, `onboarding`, `index`, `standards`, `backlog`, `review`, `readme`, `guidelines`, plus freeform `area/*`. **Exception:** `SKILL.md` files are exempt (Agent Skills frontmatter schema, `name:`/`description:` only) and the four `docs/memory/*.yaml` registries are exempt (they are data files with their own schema, not vault notes — see the registry schema instead of this tag taxonomy).
+1. **Frontmatter tags.** Start each doc/note `.md` with YAML frontmatter containing `tags:`. Taxonomy: `episode`, `onboarding`, `index`, `standards`, `backlog`, `review`, `readme`, `guidelines`, plus freeform `area/*`. **Exception:** `SKILL.md` files are exempt (Agent Skills frontmatter schema, `name:`/`description:` only). The four `docs/memory/*.md` registries are NOT exempt — they carry `tags:` frontmatter like any other doc, plus their own additional registry-schema fields (see the registry schema for those).
 2. **Links — point to a file you can open.** This is the rule most often broken; follow every clause.
    - Use a standard relative Markdown link to a **specific, openable file**: `[text](relative/path.md)`. The target must open on click (a `.md`, `.pdf`, image, etc.).
    - **Never link a bare folder.** `[docs](docs/)` opens nothing in VSCode preview or Obsidian. Link a real file inside it (usually its `README.md` or `INDEX.md`); if nothing there is worth opening, don't make it a link at all — write the path as inline code (`` `docs/` ``).
