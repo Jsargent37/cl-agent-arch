@@ -12,14 +12,14 @@ if [[ ! -d "$skills_root" ]]; then
   exit 1
 fi
 
-cache_file="$skills_root/.stocktake-cache"
+cache_file="$skills_root/.drift-check-cache"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
 for f in "$skills_root"/*/SKILL.md; do
   [[ -f "$f" ]] || continue
   name="$(basename "$(dirname "$f")")"
-  mtime="$(stat -f '%m' "$f" 2>/dev/null || stat -c '%Y' "$f")"
+  mtime="$(stat -c '%Y' "$f" 2>/dev/null || stat -f '%m' "$f" 2>/dev/null)"
   desc="$(awk -F': ' '/^description:/ { sub(/^description: */, ""); print; exit }' "$f")"
   printf '%s\t%s\t%s\n' "$name" "$mtime" "$desc"
 done | sort > "$tmp"

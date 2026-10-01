@@ -71,8 +71,24 @@ date_escaped="$(escape_sed "$today")"
 path_escaped="$(escape_sed "$project_abs_path")"
 
 mkdir -p "$project_abs_path"
-while IFS= read -r -d '' src; do
-  rel="${src#$template_dir/}"
+
+list_template_files() {
+  if git -C "$template_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "$template_dir" ls-files -z
+  else
+    find "$template_dir" -type f \
+      -not -path '*/.venv/*' \
+      -not -path '*/__pycache__/*' \
+      -not -path '*/.pytest_cache/*' \
+      -not -name '*.pyc' \
+      -not -name '*.pyo' \
+      -not -name 'uv.lock' \
+      -print0
+  fi
+}
+
+while IFS= read -r -d '' rel; do
+  src="$template_dir/$rel"
 
   if [[ "$rel" == "docs/episodes/_TEMPLATE.md" ]]; then
     dest="$project_abs_path/$rel"
@@ -102,7 +118,7 @@ while IFS= read -r -d '' src; do
     *.sh) chmod +x "$dest" ;;
   esac
   echo "write $rel"
-done < <(find "$template_dir" -type f -print0)
+done < <(list_template_files)
 
 if [[ -d "$project_abs_path/.claude/skills" ]]; then
   for skill_path in "$project_abs_path"/.claude/skills/*/; do
@@ -118,7 +134,14 @@ if [[ -d "$project_abs_path/.claude/skills" ]]; then
       rm -rf "$dest"
     fi
     if [[ "${OS:-}" == "Windows_NT" ]]; then
-      cmd //c mklink //J "$dest" "$project_abs_path/.claude/skills/$name" >/dev/null
+      src_path="$project_abs_path/.claude/skills/$name"
+      if command -v cygpath >/dev/null 2>&1; then
+        dest_win="$(cygpath -w "$dest")"
+        src_win="$(cygpath -w "$src_path")"
+        cmd //c mklink //J "$dest_win" "$src_win" >/dev/null
+      else
+        cmd //c mklink //J "$dest" "$src_path" >/dev/null
+      fi
       echo "junction .agents/skills/$name -> .claude/skills/$name"
     else
       ln -s "../../.claude/skills/$name" "$dest"
@@ -142,6 +165,8 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 *.swp
+.agents/
+.claude/skills/.drift-check-cache
 GITIGNORE
     echo "write .gitignore"
   fi

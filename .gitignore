@@ -10,3 +10,5 @@
 # Even inside the allowed .claude/ tree, exclude local/machine noise.
 .claude/settings.local.json
 **/.DS_Store
+**/.drift-check-cache
+**/.agents/
