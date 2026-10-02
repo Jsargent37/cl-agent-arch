@@ -34,9 +34,10 @@ existing files, `--python`/`--git` per step 6's conditionals). It copies `assets
 `{{SLUG}}`, `{{DATE}}`, and `{{PROJECT_ABS_PATH}}` in every file except
 `docs/episodes/_TEMPLATE.md` (left untouched for `new-task` to fill per task — see
 [reference/md-conventions.md](reference/md-conventions.md) for link and frontmatter conventions),
-and mirrors every `.claude/skills/<name>/` as `.agents/skills/<name>` (a directory junction on
-Windows, a symlink on POSIX) so a Codex-style agent discovers the same skills without a second
-copy.
+and mirrors every `.claude/skills/<name>/` that has a `SKILL.md` as `.agents/skills/<name>` (a
+directory junction on Windows, a symlink on POSIX) so a Codex-style agent discovers the same
+skills without a second copy. Non-skill directories under `.claude/skills/` (e.g. `lib/`, shared
+helpers sourced by skill scripts) are intentionally excluded from this mirror.
 
 `.claude/settings.local.json` sets `autoMemoryDirectory` to `<PROJECT_ABS_PATH>/docs/memory/claude`
 so the project's auto-memory stays local to the project instead of the global default. This must
@@ -66,8 +67,9 @@ Summarize what was created, list outstanding `TODO:` markers, and suggest runnin
 the new project to begin.
 
 ## Notes
-- `.claude/skills/` is the canonical project-local skill source; `.agents/skills/` mirrors it
-  (step 4, via the script) for platform-agnostic discovery.
+- `.claude/skills/` is the canonical project-local skill source; `.agents/skills/` mirrors each
+  skill in it (step 4, via the script — anything with a `SKILL.md`, not non-skill helper
+  directories like `lib/`) for platform-agnostic discovery.
 - The template lives at `.claude/skills/create-project/assets/template/`; the scaffolding mechanics
   live at `.claude/skills/create-project/scripts/scaffold.sh` — modify the script for mechanical
   changes (new placeholder tokens, registration format), modify this SKILL.md for judgment-driven

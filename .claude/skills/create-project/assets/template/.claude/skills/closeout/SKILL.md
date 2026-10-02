@@ -60,11 +60,15 @@ Remove scratch/temp files (deletion prompts per settings). If Python, verify `py
 ## 8. Branch cleanup (conditional)
 Read the active episode's `branch:` frontmatter field, then run
 `.claude/skills/closeout/scripts/merge-if-git.sh "<that value>"` (pass it empty/omit it if the field
-is `null`). It reports one of: `not-a-git-repo` or `already-on-default-branch` (both normal no-ops
+is `null`; add `--no-delete` if the user wants the task branch kept after merging instead of
+deleted). It reports one of: `not-a-git-repo` or `already-on-default-branch` (both normal no-ops
 — nothing else to do), `no-recorded-branch-skip-merge` (the episode has no `branch:` value — nothing
 to merge), `current-branch-mismatch-skip-merge` (the checked-out branch isn't the one the episode
 recorded — refuses rather than merging/deleting the wrong branch), `detached-head-skip-merge`
-(HEAD is detached — refuses rather than attempting a nonsensical merge), or `merged-and-deleted`
-(the recorded task branch is merged into the default branch and removed). Step 2's approval gate
-already covers this merge+delete, so no further confirmation happens here. Never run `git init`
-yourself to force this step to apply.
+(HEAD is detached — refuses rather than attempting a nonsensical merge), `merged-and-deleted`
+(the recorded task branch is merged into the default branch and removed), or `merged-and-kept`
+(merged but the branch was left in place, with `--no-delete`). Before merging it also warns (to
+stderr, non-fatal) if the episode file for this branch is missing, not yet `status: closed`, or
+still has unresolved `TODO:` markers — treat any of these as a sign steps 3/7 were skipped and go
+back to them. Step 2's approval gate already covers this merge+delete, so no further confirmation
+happens here. Never run `git init` yourself to force this step to apply.

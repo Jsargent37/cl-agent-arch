@@ -1,16 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage: merge-if-git.sh [<recorded-branch-name>]
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../lib/git-common.sh
+source "$script_dir/../../lib/git-common.sh"
+
+# Usage: merge-if-git.sh [--no-delete] [<recorded-branch-name>]
 # <recorded-branch-name> is the active episode's `branch:` frontmatter value (the
 # {date}-{slug} branch new-task's branch-if-git.sh created for this task). Only
 # merges+deletes when the CURRENT branch matches it exactly -- refuses otherwise.
-recorded_branch="${1:-}"
+# --no-delete merges but keeps the task branch instead of deleting it.
+no_delete=0
+recorded_branch=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-delete) no_delete=1; shift ;;
+    *)
+      # Only the first positional arg counts, matching the old ${1:-} behavior.
+      if [[ -z "$recorded_branch" ]]; then
+        recorded_branch="$1"
+      fi
+      shift
+      ;;
+  esac
+done
 
-if [[ ! -d ".git" ]]; then
-  echo "not-a-git-repo: skipping branch merge"
-  exit 0
-fi
+require_git_repo_or_exit "branch merge"
 
 if ! git symbolic-ref -q HEAD >/dev/null; then
   echo "detached-head-skip-merge: HEAD is detached, refusing to merge/delete"
@@ -19,16 +34,7 @@ fi
 
 current_branch="$(git rev-parse --abbrev-ref HEAD)"
 
-default_branch="$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||' || true)"
-if [[ -z "$default_branch" ]]; then
-  if git show-ref --verify --quiet refs/heads/main 2>/dev/null; then
-    default_branch="main"
-  elif git show-ref --verify --quiet refs/heads/master 2>/dev/null; then
-    default_branch="master"
-  else
-    default_branch="main"
-  fi
-fi
+default_branch="$(resolve_default_branch)"
 
 if [[ "$current_branch" == "$default_branch" ]]; then
   echo "already-on-default-branch: skipping merge/cleanup"
@@ -45,7 +51,21 @@ if [[ "$current_branch" != "$recorded_branch" ]]; then
   exit 0
 fi
 
-if ! git diff --quiet || ! git diff --cached --quiet || git ls-files --others --exclude-standard | grep -q .; then
+episode_file="docs/episodes/${current_branch}.md"
+if [[ ! -f "$episode_file" ]]; then
+  echo "warning: episode file not found: $episode_file (closeout step 3 should create it before merging)" >&2
+else
+  # Episode status is only ever 'active' (template default) or 'closed' (set
+  # by closeout step 3) -- see docs/episodes/_TEMPLATE.md.
+  if grep -q '^status: active' "$episode_file"; then
+    echo "warning: $episode_file has not been finalized (status is not 'closed') -- closeout step 3 should finalize it before merging" >&2
+  fi
+  if grep -q 'TODO:' "$episode_file"; then
+    echo "warning: $episode_file still has unresolved TODO: markers -- closeout step 7 should resolve them before merging" >&2
+  fi
+fi
+
+if has_uncommitted_changes; then
   git add -A
   git commit -m "chore: closeout - commit remaining changes on $current_branch"
   echo "committed-remaining-changes"
@@ -61,5 +81,9 @@ else
   branch_delete_flag="-D"
 fi
 
-git branch "$branch_delete_flag" "$current_branch"
-echo "merged-and-deleted: $current_branch -> $default_branch"
+if [[ "$no_delete" -eq 1 ]]; then
+  echo "merged-and-kept: $current_branch -> $default_branch"
+else
+  git branch "$branch_delete_flag" "$current_branch"
+  echo "merged-and-deleted: $current_branch -> $default_branch"
+fi

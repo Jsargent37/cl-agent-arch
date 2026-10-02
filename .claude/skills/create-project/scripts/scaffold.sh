@@ -70,7 +70,17 @@ slug_escaped="$(escape_sed "$slug")"
 date_escaped="$(escape_sed "$today")"
 path_escaped="$(escape_sed "$project_abs_path")"
 
+scaffold_marker="$project_abs_path/.claude/.scaffolded-by-create-project"
+if [[ -n "$(ls -A "$project_abs_path" 2>/dev/null)" ]] \
+  && [[ ! -f "$scaffold_marker" ]] && [[ "$force" -ne 1 ]]; then
+  echo "Refusing to scaffold into existing non-empty directory without --force: $project_abs_path" >&2
+  echo "(pass --force to scaffold into it anyway)" >&2
+  exit 2
+fi
+
 mkdir -p "$project_abs_path"
+mkdir -p "$(dirname "$scaffold_marker")"
+touch "$scaffold_marker"
 
 list_template_files() {
   if git -C "$template_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -122,7 +132,7 @@ done < <(list_template_files)
 
 if [[ -d "$project_abs_path/.claude/skills" ]]; then
   for skill_path in "$project_abs_path"/.claude/skills/*/; do
-    [[ -d "$skill_path" ]] || continue
+    [[ -f "$skill_path/SKILL.md" ]] || continue
     name="$(basename "$skill_path")"
     dest="$project_abs_path/.agents/skills/$name"
     mkdir -p "$(dirname "$dest")"
@@ -167,6 +177,7 @@ __pycache__/
 *.swp
 .agents/
 .claude/skills/.drift-check-cache
+.claude/.scaffolded-by-create-project
 GITIGNORE
     echo "write .gitignore"
   fi
@@ -188,7 +199,17 @@ if [[ ! -f "$projects_index" ]]; then
   echo "write PROJECTS.md (created)"
 fi
 
-if grep -q "^- \[$project_name\](" "$projects_index"; then
+# Pure-bash literal-prefix match -- a quoted variable in `[[ ]]` is never
+# regex/escape-processed, unlike the grep- and awk-based checks this replaced.
+already_registered=0
+while IFS= read -r line || [[ -n "$line" ]]; do
+  if [[ "$line" == "- [$project_name]("* ]]; then
+    already_registered=1
+    break
+  fi
+done <"$projects_index"
+
+if [[ "$already_registered" -eq 1 ]]; then
   echo "skip  PROJECTS.md (entry for $project_name already present)"
 else
   printf -- '- [%s](%s/README.md) — TODO: one-line purpose (created %s)\n' \

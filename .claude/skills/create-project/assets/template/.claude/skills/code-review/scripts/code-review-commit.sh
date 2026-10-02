@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../lib/git-common.sh
+source "$script_dir/../../lib/git-common.sh"
+
 # Called after a passing /code-review to commit all changes.
 # Usage: code-review-commit.sh "<commit-message>"
 # The commit message should describe what was changed, not just that a review passed.
@@ -13,12 +17,9 @@ fi
 
 commit_message="$1"
 
-if [[ ! -d ".git" ]]; then
-  echo "not-a-git-repo: skipping commit"
-  exit 0
-fi
+require_git_repo_or_exit "commit"
 
-if git diff --quiet && git diff --cached --quiet && ! git ls-files --others --exclude-standard | grep -q .; then
+if ! has_uncommitted_changes; then
   echo "Nothing to commit — working tree is clean."
   exit 0
 fi

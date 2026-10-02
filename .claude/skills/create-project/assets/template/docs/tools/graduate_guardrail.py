@@ -24,10 +24,39 @@ ROOT = Path(__file__).resolve().parents[2]  # workspace root
 MEMORY_DIR = ROOT / "docs" / "memory"
 SETTINGS_FILE = ROOT / ".claude" / "settings.json"
 
-KNOWN_CLI_VERBS = {
-    "pip", "pip3", "npm", "pnpm", "yarn", "brew", "apt", "apt-get", "choco",
-    "winget", "pipx", "conda", "gem", "cargo", "go", "python", "python3",
-}
+_SHELL_RULE_RE = re.compile(r"(?:Bash|PowerShell)\(([^:)]+)")
+
+
+def known_verbs_from_settings(settings: dict[str, object]) -> set[str]:
+    """Extract recognized CLI verbs from an already-loaded settings dict.
+
+    Reads permissions.deny/ask across both Bash(...) and PowerShell(...) rules
+    so this stays in sync with whatever commands settings.json actually gates
+    on either platform, instead of hand-maintaining a parallel list that can
+    drift out of step with it.
+    """
+    permissions = settings.get("permissions", {})
+    verbs: set[str] = set()
+    for rule_type in ("deny", "ask"):
+        for rule in permissions.get(rule_type, []):
+            match = _SHELL_RULE_RE.match(rule)
+            if match:
+                words = match.group(1).strip().split()
+                if words:
+                    verbs.add(words[0])
+    return verbs
+
+
+def load_known_cli_verbs(settings_path: Path) -> set[str]:
+    """Derive recognized CLI verbs from settings.json's Bash/PowerShell(...) rules.
+
+    Convenience wrapper around `known_verbs_from_settings` for callers that
+    only have a path, not an already-loaded settings dict.
+    """
+    if not settings_path.exists():
+        return set()
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    return known_verbs_from_settings(settings)
 
 
 class GuardrailError(ValueError):
@@ -96,19 +125,44 @@ def validate_eligible(entry: dict[str, object]) -> None:
         )
 
 
-def classify_mechanism(entry: dict[str, object]) -> tuple[str, str | None]:
+def classify_mechanism(
+    entry: dict[str, object], known_verbs: set[str] | None = None
+) -> tuple[str, str | None]:
     """Propose 'permission-rule' (with a command pattern) or 'hook-script' (no pattern).
 
     Scans backtick-quoted spans in `content` for a known CLI verb as the first
     word (e.g. `pip install` -> pip). The first match wins. No match -> hook-script.
+
+    `known_verbs` defaults to the live set derived from settings.json (see
+    `load_known_cli_verbs`) so this classification can't drift from what
+    settings.json actually enforces.
     """
+    if known_verbs is None:
+        known_verbs = load_known_cli_verbs(SETTINGS_FILE)
     content = entry.get("content") or ""
     for span in re.findall(r"`([^`]+)`", content):
         stripped = span.strip()
         first_word = stripped.split()[0] if stripped else ""
-        if first_word in KNOWN_CLI_VERBS:
+        if first_word in known_verbs:
             return "permission-rule", stripped
     return "hook-script", None
+
+
+def suggest_hook_matcher(content: str) -> str:
+    """Default PreToolUse matcher for a hook-script mechanism.
+
+    If the guardrail names what looks like an actual command invocation (a
+    backtick span with a verb AND at least one argument, e.g. `some-tool
+    do-thing`), scope the hook to 'Bash' rather than firing on every tool
+    call. A bare filename or identifier in backticks (`CHANGELOG.md`,
+    `API_KEY`) is a single token, not a command, and falls through to the
+    wildcard '*' for a general behavioral guardrail.
+    """
+    for span in re.findall(r"`([^`]+)`", content):
+        words = span.strip().split()
+        if len(words) >= 2 and re.fullmatch(r"[A-Za-z0-9_./-]+", words[0]):
+            return "Bash"
+    return "*"
 
 
 def _build_registry_update(
@@ -227,14 +281,15 @@ def propose(entry: dict[str, object], inputs: ProposalInputs) -> dict[str, objec
         settings_change = f"add {rule!r} to permissions.{inputs.rule_type}"
     elif inputs.mechanism == "hook-script":
         target = f"docs/tools/guardrail_hooks/{guardrail_id}.py"
+        matcher = suggest_hook_matcher(entry.get("content") or "")
         settings_change = (
             f"scaffold {target} (stub) and add a PreToolUse hook entry "
-            f"matching this guardrail's tool(s)"
+            f"with matcher {matcher!r}"
         )
     else:
         raise GuardrailError(f"unknown mechanism {inputs.mechanism!r}")
 
-    return {
+    proposal = {
         "mechanism": inputs.mechanism,
         "pattern": inputs.pattern,
         "rule_type": inputs.rule_type,
@@ -242,6 +297,9 @@ def propose(entry: dict[str, object], inputs: ProposalInputs) -> dict[str, objec
         "registry_update": _build_registry_update(entry, inputs.mechanism, target, inputs.severity),
         "target": target,
     }
+    if inputs.mechanism == "hook-script":
+        proposal["matcher"] = matcher
+    return proposal
 
 
 @dataclass
@@ -254,22 +312,34 @@ class ToolPaths:
     memory_dir: Path
 
 
-def apply_proposal(paths: ToolPaths, entry: dict[str, object], proposal: dict[str, object]) -> None:
+def apply_proposal(
+    paths: ToolPaths,
+    entry: dict[str, object],
+    proposal: dict[str, object],
+    settings: dict[str, object] | None = None,
+) -> None:
     """Write the settings.json change, hook-script stub (if applicable), and the
-    updated GUARDRAILS.md entry in place."""
+    updated GUARDRAILS.md entry in place.
+
+    `settings` lets a caller that already loaded settings.json (e.g. to derive
+    known CLI verbs) pass it in instead of this function reading the file a
+    second time; defaults to loading it here if not given.
+    """
     guardrail_id = entry["id"]
+    # propose() only ever returns "permission-rule" or "hook-script", so both
+    # branches below need settings -- load it once, unconditionally.
+    settings = settings if settings is not None else load_settings(paths.settings_file)
 
     if proposal["mechanism"] == "permission-rule":
-        settings = load_settings(paths.settings_file)
         rule = _permission_rule_string(proposal["pattern"])
         updated_settings, _ = add_permission_rule(settings, proposal["rule_type"], rule)
         paths.settings_file.write_text(json.dumps(updated_settings, indent=2) + "\n", encoding="utf-8")
     elif proposal["mechanism"] == "hook-script":
         hook_scripts_dir = paths.root / "docs" / "tools" / "guardrail_hooks"
         script_path = scaffold_hook_script(hook_scripts_dir, guardrail_id)
-        settings = load_settings(paths.settings_file)
         command = f"python {script_path.relative_to(paths.root).as_posix()}"
-        updated_settings, _ = add_pretooluse_hook(settings, "*", command)
+        matcher = proposal.get("matcher", "*")
+        updated_settings, _ = add_pretooluse_hook(settings, matcher, command)
         paths.settings_file.write_text(json.dumps(updated_settings, indent=2) + "\n", encoding="utf-8")
 
     guardrails_path = paths.memory_dir / "GUARDRAILS.md"
@@ -321,6 +391,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--apply", action="store_true", help="Write the changes (default: propose only).")
     args = parser.parse_args(argv)
 
+    settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8")) if SETTINGS_FILE.exists() else {}
+
     try:
         entry = load_guardrail_entry(MEMORY_DIR, args.guardrail_id)
         validate_eligible(entry)
@@ -329,7 +401,7 @@ def main(argv: list[str] | None = None) -> int:
             mechanism = args.mechanism
             pattern = args.pattern
         else:
-            mechanism, pattern = classify_mechanism(entry)
+            mechanism, pattern = classify_mechanism(entry, known_verbs_from_settings(settings))
             if args.pattern:
                 pattern = args.pattern
 
@@ -341,7 +413,10 @@ def main(argv: list[str] | None = None) -> int:
     _print_proposal(entry, proposal)
 
     if args.apply:
-        apply_proposal(ToolPaths(ROOT, SETTINGS_FILE, MEMORY_DIR), entry, proposal)
+        if proposal["mechanism"] in ("permission-rule", "hook-script") and not SETTINGS_FILE.exists():
+            print(f"error: {SETTINGS_FILE} does not exist", file=sys.stderr)
+            return 1
+        apply_proposal(ToolPaths(ROOT, SETTINGS_FILE, MEMORY_DIR), entry, proposal, settings=settings)
         print("\nApplied.")
 
     return 0

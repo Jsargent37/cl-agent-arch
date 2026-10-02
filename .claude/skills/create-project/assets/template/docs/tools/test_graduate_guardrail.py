@@ -16,10 +16,13 @@ from graduate_guardrail import (
     classify_mechanism,
     dump_entry_yaml,
     load_guardrail_entry,
+    known_verbs_from_settings,
+    load_known_cli_verbs,
     load_settings,
     propose,
     replace_entry_block,
     scaffold_hook_script,
+    suggest_hook_matcher,
     validate_eligible,
 )
 
@@ -172,6 +175,124 @@ def test_classify_mechanism_falls_back_to_hook_script_for_unknown_verb():
 def test_load_settings_missing_file_raises(tmp_path: Path):
     with pytest.raises(GuardrailError):
         load_settings(tmp_path / "nope.json")
+
+
+def test_load_known_cli_verbs_derives_from_settings_deny_and_ask_bash_and_powershell(tmp_path: Path):
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text(
+        json.dumps(
+            {
+                "permissions": {
+                    "deny": ["Bash(pip install:*)"],
+                    "ask": ["Bash(rm:*)", "Bash(git clean:*)", "PowerShell(Remove-Item:*)"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    verbs = load_known_cli_verbs(settings_file)
+    assert verbs == {"pip", "rm", "git", "Remove-Item"}
+
+
+def test_load_known_cli_verbs_missing_file_returns_empty_set(tmp_path: Path):
+    assert load_known_cli_verbs(tmp_path / "nope.json") == set()
+
+
+def test_known_verbs_from_settings_ignores_a_rule_with_no_command_text():
+    # A malformed/placeholder rule like "Bash( :*)" has a non-empty regex
+    # capture group that is pure whitespace -- must not raise IndexError when
+    # there's no first word to extract.
+    settings = {"permissions": {"deny": [], "ask": ["Bash( :*)", "Bash(rm:*)"]}}
+    assert known_verbs_from_settings(settings) == {"rm"}
+
+
+def test_known_verbs_from_settings_matches_load_known_cli_verbs(tmp_path: Path):
+    settings = {"permissions": {"deny": [], "ask": ["Bash(ssh:*)", "PowerShell(Invoke-WebRequest:*)"]}}
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text(json.dumps(settings), encoding="utf-8")
+    assert known_verbs_from_settings(settings) == load_known_cli_verbs(settings_file)
+    assert known_verbs_from_settings(settings) == {"ssh", "Invoke-WebRequest"}
+
+
+def test_classify_mechanism_uses_verbs_derived_from_settings_json_not_hardcoded_list():
+    # "rm" was never in the old hand-maintained KNOWN_CLI_VERBS set --
+    # classify_mechanism must still recognize it via a settings.json-derived
+    # verb set. Pass known_verbs explicitly so this test doesn't depend on the
+    # real template settings.json's current contents.
+    entry = {"content": "Always confirm scope before `rm -rf` on shared directories."}
+    mechanism, pattern = classify_mechanism(entry, known_verbs={"rm"})
+    assert mechanism == "permission-rule"
+    assert pattern == "rm -rf"
+
+
+def test_suggest_hook_matcher_scopes_to_bash_for_unknown_shell_command():
+    content = "Run `some-custom-tool do-thing` before committing."
+    assert suggest_hook_matcher(content) == "Bash"
+
+
+def test_suggest_hook_matcher_falls_back_to_wildcard_for_non_shell_guardrail():
+    content = "Always write commit messages in the past tense."
+    assert suggest_hook_matcher(content) == "*"
+
+
+def test_suggest_hook_matcher_does_not_mistake_a_bare_filename_for_a_command():
+    # A single backtick-quoted token (a filename or identifier, not a command
+    # invocation) must not be scoped to 'Bash' -- there's no actual shell
+    # command here for a Bash-matched hook to ever see.
+    content = "Always keep `CHANGELOG.md` up to date before releasing."
+    assert suggest_hook_matcher(content) == "*"
+
+
+def test_suggest_hook_matcher_recognizes_path_qualified_commands():
+    # A command invoked by absolute/relative path is still a real command
+    # invocation and must be scoped to 'Bash', not fall through to '*'.
+    content = "Run `/usr/local/bin/mytool clean` before committing."
+    assert suggest_hook_matcher(content) == "Bash"
+
+
+def test_propose_hook_script_scopes_matcher_to_bash_not_wildcard():
+    entry = {
+        "id": "needs-hook",
+        "content": "Run `some-custom-tool do-thing` before committing.",
+    }
+    proposal = propose(entry, ProposalInputs("hook-script", None, "deny"))
+    assert proposal["matcher"] == "Bash"
+    assert "matcher 'Bash'" in proposal["settings_change"]
+
+
+def test_apply_proposal_hook_script_wires_bash_matcher_not_wildcard(tmp_path: Path):
+    hook_script_md = """### needs-hook
+```yaml
+summary: A guardrail naming a shell command with an unrecognized verb
+applicability: [python-environment]
+status: draft
+promotion_type: null
+promoted_to: null
+promotion_count: 1
+episodes: []
+content: Run `some-custom-tool do-thing` before committing.
+enforceability: hard
+tier: null
+severity: null
+hook: null
+```
+"""
+    memory_dir = tmp_path / "docs" / "memory"
+    memory_dir.mkdir(parents=True)
+    (memory_dir / "GUARDRAILS.md").write_text(hook_script_md, encoding="utf-8")
+    settings_file = tmp_path / ".claude" / "settings.json"
+    settings_file.parent.mkdir(parents=True)
+    settings_file.write_text(json.dumps({"hooks": {}}), encoding="utf-8")
+
+    entry = load_guardrail_entry(memory_dir, "needs-hook")
+    mechanism, pattern = classify_mechanism(entry)
+    assert mechanism == "hook-script"
+    proposal = propose(entry, ProposalInputs(mechanism, pattern, "deny"))
+    apply_proposal(ToolPaths(tmp_path, settings_file, memory_dir), entry, proposal)
+
+    settings = json.loads(settings_file.read_text(encoding="utf-8"))
+    pretooluse = settings["hooks"]["PreToolUse"]
+    assert pretooluse[0]["matcher"] == "Bash"
 
 
 def test_add_permission_rule_is_idempotent_and_does_not_mutate_input():
