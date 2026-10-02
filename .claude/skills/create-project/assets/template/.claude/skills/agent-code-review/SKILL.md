@@ -9,6 +9,8 @@ description: Thorough, multi-agent review of the current task's changes AND thei
 Resolve changes (git diff → episode `## Files touched` → ask). Load `docs/INDEX.md`, `docs/memory/PROCEDURES.md`, `docs/memory/GUARDRAILS.md`, `docs/memory/LESSONS.md`, `docs/memory/SEMANTICS.md`, and `docs/CODE_STANDARDS.md`.
 
 ## 2. Dispatch 6 lens subagents (in parallel)
+Dispatch each lens subagent with `model: haiku` unless this task explicitly calls for deeper
+judgment on a given lens (state why, then use the default/unspecified tier for that lens only).
 Each reviews the change set through ONE lens and reports findings (`file:line` + issue + suggested fix):
 1. **Design/complexity** — DRY/SOLID/KISS/OOP, helper functions, ≤50 LoC.
 2. **Readability** — naming, comments (≤2 lines, only when needed), docstrings (public only, accurate/current).
