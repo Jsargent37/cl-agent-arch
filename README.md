@@ -23,6 +23,10 @@ this repo.
   agent, or guardrail that's proven itself across multiple of your
   projects up into the shared template, so every future project inherits
   it.
+- **`.claude/skills/push-down-standardize/`** — propagates a change already
+  applied to the shared template out to every sibling project, via a
+  three-way merge against a sync manifest so local customizations and
+  real template changes never clobber each other.
 
 ## Requirements
 
@@ -38,9 +42,9 @@ this repo.
    your projects workspace root; `.claude/` is already at its top level.
 2. Install the `superpowers` plugin from its marketplace.
 3. Run `/create-project` (or
-   `bash .claude/skills/create-project/scripts/bootstrap-top-level-repo.sh <repo-name> "<description>"`,
+   `bash .claude/skills/create-project/scripts/scaffold.sh [--force] [--git] [--python] <slug> "<project-name>" "<project-abs-path>"`,
    from your projects workspace root) to scaffold your first project.
-4. `create-project` requires an `INDEX.md` file at your projects root — a
+4. `scaffold.sh` requires a `PROJECTS.md` file at your projects root — a
    short per-project index it appends a stub entry to on every new
    project. If one doesn't exist yet, it's created automatically on
    first use.

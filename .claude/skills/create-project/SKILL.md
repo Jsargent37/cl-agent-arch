@@ -1,113 +1,78 @@
 ---
 name: create-project
-description: Create a new top-level project repository under your projects workspace root with the shared Claude/Codex docs, memory structure, and starter lifecycle skills.
-argument-hint: "<repo-name> [one-line description]"
+description: Scaffold a new project folder with the standard documentation + memory architecture (root CLAUDE.md/AGENTS.md/README.md; docs with ONBOARDING/INDEX/CODE_STANDARDS/BACKLOG/memory/episodes/reviews), the project-scoped skills mirrored into both .claude/skills/ and .agents/skills/, and a settings.json policy. Use when starting, bootstrapping, or setting up a new project.
 ---
 
 # create-project
 
-Use this workspace-level skill when the user wants to create a new top-level project repository with the standard docs and memory structure.
+Scaffolds a new project from the bundled template in `assets/template/`.
 
 ## When to use
+- User asks to create a new project, repo, or workspace as a direct child of the projects root.
+- Not for repo-local tasks inside an existing project — those use that project's own
+  `.claude/skills/`.
 
-- User asks to create a new project, repo, or workspace
-- User says "set up a new project", "bootstrap a project", or "create a repo"
-- The target should be a direct child of your projects workspace root
+## 1. Locate the projects root
+The projects root is three levels up from this skill folder (`…/.claude/skills/create-project` →
+the parent of `.claude`). New projects are created as subfolders there. Confirm the root with the
+user if ambiguous.
 
-Do not use this for repo-local tasks inside an existing project. Those project-specific skills live in each repo's own `.claude/skills/` directory and may intentionally drift toward that repo's workflow.
+## 2. Name + slug
+Ask for the project name. Derive a kebab-case `<slug>`. Verify `<root>/<slug>` does not already
+exist, unless `--force` is given (overwrite existing files; default skips files that already
+exist).
 
-## What it does
+## 3. Adaptive interview
+Follow [reference/interview.md](reference/interview.md). Cover purpose, key terms, known rules,
+tech stack & structure, Python?, git? Ask only what helps; gauge depth from the answers.
 
-Runs `scripts/bootstrap-top-level-repo.sh` to scaffold a new project directory under your projects workspace root with the standard file structure:
+## 4. Copy + substitute
+Run `.claude/skills/create-project/scripts/scaffold.sh <slug> "<project-name>" "<project-abs-path>"`
+(add `--force` to overwrite
+existing files, `--python`/`--git` per step 6's conditionals). It copies `assets/template/`
+**recursively, including dotfiles** into `<project-abs-path>`, substitutes `{{PROJECT_NAME}}`,
+`{{SLUG}}`, `{{DATE}}`, and `{{PROJECT_ABS_PATH}}` in every file except
+`docs/episodes/_TEMPLATE.md` (left untouched for `new-task` to fill per task — see
+[reference/md-conventions.md](reference/md-conventions.md) for link and frontmatter conventions),
+and mirrors every `.claude/skills/<name>/` that has a `SKILL.md` as `.agents/skills/<name>` (a
+directory junction on Windows, a symlink on POSIX) so a Codex-style agent discovers the same
+skills without a second copy. Non-skill directories under `.claude/skills/` (e.g. `lib/`, shared
+helpers sourced by skill scripts) are intentionally excluded from this mirror.
 
-```
-<repo-name>/
-├── README.md                          # repo entry point
-├── CLAUDE.md                          # Claude operating rules and working memory
-├── AGENTS.md -> CLAUDE.md              # Codex operating rules symlink
-├── .claude/
-│   ├── settings.json              # permissions for skill scripts
-│   └── skills/
-│       ├── new-task/
-│       │   ├── SKILL.md               # /new-task skill definition
-│       │   └── scripts/
-│       │       └── new-task.sh        # creates branch, episode file, updates NOTES
-│       ├── code-review/
-│       │   ├── SKILL.md               # /code-review skill definition
-│       │   └── scripts/
-│       │       └── code-review-commit.sh  # stages and commits after passing review
-│       ├── closeout/
-│       │   ├── SKILL.md               # /closeout skill definition
-│       │   └── scripts/
-│       │       └── closeout.sh        # merges branch, optional delete
-│       ├── distill/
-│       │   ├── SKILL.md               # /distill skill definition — promotes signals into memory + skills/tools
-│       │   └── scripts/
-│       │       └── tally-signals.sh   # greps episode signals into a promotion tally
-│       └── drift-check/
-│           ├── SKILL.md               # /drift-check skill definition — audits skills + prunes Lessons.md
-│           └── scripts/
-│               └── inventory.sh       # lists/diffs skills for Quick Scan vs Full Stocktake
-├── .agents/
-│   └── skills/
-│       ├── new-task -> ../../.claude/skills/new-task
-│       ├── code-review -> ../../.claude/skills/code-review
-│       ├── closeout -> ../../.claude/skills/closeout
-│       ├── distill -> ../../.claude/skills/distill
-│       └── drift-check -> ../../.claude/skills/drift-check
-└── docs/
-    ├── ONBOARDING.md                  # agent onboarding procedures
-    ├── TASK.md                        # task lifecycle workflow
-    ├── NOTES.md                       # shared scratchpad (cleaned each session)
-    ├── README.md                      # project description and state
-    ├── ROADMAP.md                     # project priorities
-    └── Memory/
-        ├── Semantics.md               # stable facts and policies (heading + YAML entries)
-        ├── Procedures.md              # refined workflow bodies, populated by /distill
-        ├── Guardrails.md              # tiered enforcement registry, populated by /distill
-        ├── Lessons.md                 # capped narrative lessons, populated by /distill
-        ├── Archive.md                 # collapsed Procedures bodies (reference-only)
-        └── Episodes/
-            ├── README.md              # episode conventions + signal schema
-            └── episode-template.md   # template for new episodes (includes signals: [])
-```
+`.claude/settings.local.json` sets `autoMemoryDirectory` to `<PROJECT_ABS_PATH>/docs/memory/claude`
+so the project's auto-memory stays local to the project instead of the global default. This must
+be an absolute path — the script's `{{PROJECT_ABS_PATH}}` substitution handles it automatically.
 
-## How to invoke
+## 5. Pre-fill (adaptive)
+Fill what the interview made clear — README overview, INDEX structure, additional `SEMANTICS.md`
+terms, additional `PROCEDURES.md`/`GUARDRAILS.md` entries (same schema as the seed entries already
+in the template, including `distilled_into: null` on any new `PROCEDURES.md` entry). Any new
+`applicability` tag must first exist as an entry id in `SEMANTICS.md` — add the term there before
+referencing it. Where something is unclear, leave a `TODO:` marker — never invent specifics. The
+script never does this step — it only copies and substitutes; this pass is agent judgment.
 
-1. Ask the user for the repo name and a one-line project description if not already provided.
-2. Run the bootstrap script:
+## 6. Conditionals
+Re-run step 4's `scaffold.sh` invocation with `--python` and/or `--git` added, or run it once
+up front with both flags if the interview already answered these — the script is idempotent
+(skips existing files unless `--force`). `--python` runs `uv venv`; `--git` runs `git init`, writes
+a `.gitignore`, and makes an initial commit. Never run `--git` unless the user wants this project
+git-tracked — nothing else in this template requires it.
 
-Run from your projects workspace root:
+## 7. Register
+`scaffold.sh` already appended a stub entry to `<root>/PROJECTS.md` during step 4 — replace its
+`TODO: one-line purpose` with a real one now that the interview/pre-fill passes are done.
 
-```bash
-bash .claude/skills/create-project/scripts/bootstrap-top-level-repo.sh "<repo-name>" "<one-line description>"
-```
-
-3. After scaffolding completes, open the new repo and prompt the user to fill in the placeholders in:
-   - `docs/README.md` — project description and current state
-   - `docs/ROADMAP.md` — priorities and active work
-   - `CLAUDE.md` — shared Claude/Codex project-specific rules (under `## Project Rules`)
-4. The bootstrap script automatically appends a stub entry to `INDEX.md` at your projects workspace root using the one-line description, creating `INDEX.md` first if it doesn't exist yet; revisit and expand the second sentence once the project has concrete state worth describing.
-
-## Flags
-
-- `--force` — overwrite existing files (default skips files that already exist)
-
-## Documentation Formatting
-
-- All docs use **Obsidian-compatible markdown** with YAML frontmatter (`tags`, `aliases`, `date`).
-- Use standard markdown links `[text](relative-path.md)` for all cross-document links — **not** `[[wikilinks]]`. Standard links render on both GitHub and Obsidian graph view.
-- Every entry in `Semantics.md` and `Procedures.md` must link to the episode files that support it.
-- Episode files link back to promoted items and related docs via the `## Related` section.
+## 8. Report
+Summarize what was created, list outstanding `TODO:` markers, and suggest running `new-task` in
+the new project to begin.
 
 ## Notes
-
-- The script initializes a git repo in the new directory if one does not already exist.
-- `.claude/skills/` is the canonical project-local skill source for Claude.
-- `.agents/skills/` contains symlinks to the same skill folders so Codex discovers the same source.
-- `distill` and `drift-check` are copied into every new project but are invoked on demand only — never wired into `/new-task`, `/code-review`, or `/closeout`.
-- `graduate-to-template` is a separate, projects-root-level skill (sibling to `create-project`, not copied into individual projects) — see `.claude/skills/graduate-to-template/SKILL.md` at your projects workspace root.
-- `AGENTS.md` is a symlink to `CLAUDE.md` so Codex and Claude share the same repo-level operating rules.
-- All `__REPO_NAME__`, `__PROJECT_DESCRIPTION__`, and `__DATE__` placeholders are replaced automatically.
-- The template lives at `.claude/skills/create-project/template/top-level-repo/`.
-- After scaffolding, the script appends a stub `### [<repo>](./<repo>/)` section to `INDEX.md` at your projects workspace root, creating the file first if it doesn't exist yet (skipped only if an entry for the repo is already present).
+- `.claude/skills/` is the canonical project-local skill source; `.agents/skills/` mirrors each
+  skill in it (step 4, via the script — anything with a `SKILL.md`, not non-skill helper
+  directories like `lib/`) for platform-agnostic discovery.
+- The template lives at `.claude/skills/create-project/assets/template/`; the scaffolding mechanics
+  live at `.claude/skills/create-project/scripts/scaffold.sh` — modify the script for mechanical
+  changes (new placeholder tokens, registration format), modify this SKILL.md for judgment-driven
+  steps (interview, pre-fill).
+- All `{{PROJECT_NAME}}`, `{{SLUG}}`, `{{DATE}}`, and `{{PROJECT_ABS_PATH}}` placeholders are
+  replaced automatically by the script.
